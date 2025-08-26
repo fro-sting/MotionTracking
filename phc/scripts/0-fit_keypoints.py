@@ -6,18 +6,6 @@ import os.path as osp
 sys.path.append(os.getcwd())
 
 import numpy as np
-_missing = {
-    "bool":    np.bool_,
-    "int":     np.int_,
-    "float":   np.float_,
-    "complex": np.complex_,
-    "object":  np.object_,
-    "unicode": np.unicode_,
-    "str":     np.str_,
-}
-for name, new in _missing.items():
-    if not hasattr(np, name):
-        setattr(np, name, new)
 
 from scipy.spatial.transform import Rotation as sRot
 import joblib
@@ -25,7 +13,7 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 from smpl_sim.smpllib.smpl_joint_names import SMPL_BONE_ORDER_NAMES
-from phc.utils.torch_humanoid_batch import Humanoid_Batch
+from utils.torch_humanoid_batch import Humanoid_Batch
 from smpl_sim.utils.smoothing_utils import gaussian_filter_1d_batch
 import hydra
 from omegaconf import DictConfig
@@ -88,7 +76,7 @@ def process_motion(all_pkls, key_names, cfg):
         N = joints.shape[0]
         print('Processing:', data_key, " Motion length: ", N)
 
-        animate_3d(joints, orientation=root_orientation)
+        # animate_3d(joints, orientation=root_orientation)
         
         root_trans_offset = joints[:, 0].clone()
 
@@ -149,11 +137,12 @@ def process_motion(all_pkls, key_names, cfg):
 def main(cfg : DictConfig) -> None:
     
     motion_file = cfg.motion_file
+    dump_file = cfg.get("dump_file", None)
     all_pkls = joblib.load(motion_file)
-    print(all_pkls)
-    key_names = list(all_pkls.keys())
+    key_names = list(all_pkls.keys())[:30]
     
     all_data = process_motion(all_pkls, key_names, cfg)
+    joblib.dump(all_data, dump_file)
 
 
 if __name__ == "__main__":

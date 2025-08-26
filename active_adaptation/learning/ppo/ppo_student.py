@@ -66,8 +66,8 @@ class PPOStudentConfig:
     kl_coef: float = 0.01
     short_history: int = 5
 
-    # teacher_ckpt_path: Union[str, None] = None
-    teacher_ckpt_path: str = "/ssd/cv/motion_tracking/active-adaptation/scripts/outputs/2025-08-23/12-38-49-3090_parallel-ppo/wandb/latest-run/files/checkpoint_final.pt"
+    teacher_ckpt_path: Union[str, None] = None
+    # teacher_ckpt_path: str = "/ssd/cv/motion_tracking/active-adaptation/scripts/outputs/2025-08-23/12-38-49-3090_parallel-ppo/wandb/latest-run/files/checkpoint_final.pt"
     compile: bool = False
     use_ddp: bool = True
     checkpoint_path: Union[str, None] = None

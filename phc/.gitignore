@@ -60,3 +60,6 @@ data/AMASS/
 # data/g1_27dof/
 # data/smpl/
 datasets/ 
+
+# Pickle files
+*.pkl

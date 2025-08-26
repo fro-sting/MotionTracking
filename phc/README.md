@@ -26,7 +26,7 @@ uv run scripts/3-vis_q_mj.py +motion_file=./data/g1/v1/amass_all.pkl
 
 For 27dof model (the current tracking humanoid model), we can use the following command:
 ```bash
-uv run scripts/1-fit_smpl_shape.py --config-nameunitree_g1_27dof_fitting
+uv run scripts/1-fit_smpl_shape.py --config-name unitree_g1_27dof_fitting
 uv run scripts/2-fit_smpl_motion.py --config-name unitree_g1_27dof_fitting +amass_root=./data/AMASS
 uv run scripts/3-vis_q_mj.py --config-name unitree_g1_27dof_fitting +motion_file=./data/g1_27dof/v1/amass_all.pkl
 ```
