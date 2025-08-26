@@ -764,7 +764,7 @@ G1_LeggedLab_CFG = ArticulationCfg(
 
 H2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_PATH}/h1_2_handless/h2_handless.usd",
+        usd_path=f"{ASSET_PATH}/H2/h2_handless.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

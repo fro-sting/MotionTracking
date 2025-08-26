@@ -11,6 +11,7 @@ ROBOTS = {
     "g1_27dof": G1_27DOF_CFG,
     "g1_23dof": G1_23DOF_CFG,
     "g1_29dof": G1_29DOF_CFG,
+    "h2": H2_CFG,
 }
 
 

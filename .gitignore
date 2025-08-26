@@ -188,6 +188,7 @@ scripts/exports/
 scripts/outputs_play/
 scripts/outputs_eval/
 scripts/images
+scripts/videos
 checkpoint*.pt
 test/
 *.csv
