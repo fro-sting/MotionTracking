@@ -61,13 +61,13 @@ class PPOStudentConfig:
     entropy_coef: float = 0.001
     layer_norm: Union[str, None] = "before"
     value_norm: bool = False
-    vecnorm: List[str] = field(default_factory=lambda: [OBS_KEY, OBS_PRIV_KEY])
+    vecnorm: List[str] = field(default_factory=lambda: [OBS_HIST_KEY, OBS_PRIV_KEY])
     
-    short_history: int = 10
-
     kl_coef: float = 0.01
+    short_history: int = 5
+
     # teacher_ckpt_path: Union[str, None] = None
-    teacher_ckpt_path: str = "/ssd/cv/motion_tracking/active-adaptation/scripts/outputs/2025-08-21/18-15-52-3090_parallel-ppo/wandb/latest-run/files/checkpoint_final.pt"
+    teacher_ckpt_path: str = "/ssd/cv/motion_tracking/active-adaptation/scripts/outputs/2025-08-23/12-38-49-3090_parallel-ppo/wandb/latest-run/files/checkpoint_final.pt"
     compile: bool = False
     use_ddp: bool = True
     checkpoint_path: Union[str, None] = None
@@ -109,14 +109,14 @@ class PPOStudentPolicy(TensorDictModuleBase):
         
         def make_actor(out_key: str):
             modules = [
-                CatTensors([OBS_KEY, "stu_ref_motion_"], "a_in"),
+                CatTensors([OBS_HIST_KEY, "stu_ref_motion_"], "a_in"),
                 TensorDictModule(make_mlp([2048, 1024, 512]), ["a_in"], [out_key])
             ]
             return modules
         
         def make_critic(out_key: str):
             modules = [
-                CatTensors([OBS_KEY, OBS_REF_KEY, OBS_PRIV_KEY], "c_in"),
+                CatTensors([OBS_HIST_KEY, OBS_REF_KEY, OBS_PRIV_KEY], "c_in"),
                 TensorDictModule(make_mlp([2048, 1024, 512]), ["c_in"], [out_key])
             ]
             return modules
@@ -157,22 +157,6 @@ class PPOStudentPolicy(TensorDictModuleBase):
         self.actor.apply(init_)
         self.critic.apply(init_)
 
-        if active_adaptation.is_distributed():
-            distr.init_process_group(
-                backend="nccl",
-                world_size=active_adaptation.get_world_size(),
-                rank=active_adaptation.get_local_rank()
-            )
-            self.world_size = active_adaptation.get_world_size()
-            if self.cfg.use_ddp:
-                self.actor = DDP(self.actor)
-                self.critic = DDP(self.critic)
-            else:
-                for param in self.actor.parameters():
-                    distr.broadcast(param, src=0)
-                for param in self.critic.parameters():
-                    distr.broadcast(param, src=0)
-
         self.opt = torch.optim.Adam(
             [
                 {"params": self.actor.parameters()},
@@ -186,6 +170,7 @@ class PPOStudentPolicy(TensorDictModuleBase):
             self.update = torch.compile(self.update, fullgraph=True)
 
         # build teacher policy and teacher vecnorm
+        self.teacher = None
         if cfg.teacher_ckpt_path is not None:
             from active_adaptation.learning.ppo.ppo import PPOConfig, PPOPolicy
             teacher = PPOPolicy(PPOConfig(), observation_spec, action_spec, reward_spec, device)
@@ -195,7 +180,26 @@ class PPOStudentPolicy(TensorDictModuleBase):
             self.teacher = TensorDictSequential(
                 teacher.vecnorm.to_observation_norm(),
                 teacher.actor,
-            )
+            ).to(self.device)
+
+        if active_adaptation.is_distributed():
+            if not distr.is_initialized():
+                distr.init_process_group(
+                    backend="nccl",
+                    world_size=active_adaptation.get_world_size(),
+                    rank=active_adaptation.get_local_rank()
+                )
+            else:
+                print(f"[Info]: Distributed training already initialized.")
+            self.world_size = active_adaptation.get_world_size()
+            if self.cfg.use_ddp and distr.is_initialized():
+                self.actor = DDP(self.actor)
+                self.critic = DDP(self.critic)
+            else:
+                for param in self.actor.parameters():
+                    distr.broadcast(param, src=0)
+                for param in self.critic.parameters():
+                    distr.broadcast(param, src=0)
 
     def count_parameters(self):
         num_actor_params = sum(p.numel() for p in self.actor.parameters() if p.requires_grad)
@@ -301,7 +305,9 @@ class PPOStudentPolicy(TensorDictModuleBase):
         td_teacher = tensordict.clone()
         for k in self.cfg.vecnorm:
             td_teacher.set(k, tensordict.get(f"raw_{k}"))
-        self.teacher(td_teacher)
+        td_teacher = td_teacher.to(self.device)
+        with torch.no_grad():
+            self.teacher(td_teacher)
         dist_teacher = IndependentNormal(td_teacher["loc"], td_teacher["scale"])
         kl_div = D.kl_divergence(dist, dist_teacher).mean()
         kl_loss = kl_div * self.cfg.kl_coef

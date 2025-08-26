@@ -153,13 +153,16 @@ class PPOPolicy(TensorDictModuleBase):
         self.critic.apply(init_)
 
         if active_adaptation.is_distributed():
-            distr.init_process_group(
-                backend="nccl",
-                world_size=active_adaptation.get_world_size(),
-                rank=active_adaptation.get_local_rank()
-            )
+            if not distr.is_initialized():
+                distr.init_process_group(
+                    backend="nccl",
+                    world_size=active_adaptation.get_world_size(),
+                    rank=active_adaptation.get_local_rank()
+                )
+            else:
+                print(f"[Info]: Distributed training already initialized.")
             self.world_size = active_adaptation.get_world_size()
-            if self.cfg.use_ddp:
+            if self.cfg.use_ddp and distr.is_initialized():
                 self.actor = DDP(self.actor)
                 self.critic = DDP(self.critic)
             else:
