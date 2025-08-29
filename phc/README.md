@@ -48,6 +48,7 @@ For installing the loco-mujoco support:
 uv venv --python 3.10 .venv-py310
 source .venv-py310/bin/activate
 
+git clone https://github.com/robfiras/loco-mujoco.git
 cd loco-mujoco
 uv pip install -e .
 uv pip install "jax[cuda12]" joblib
