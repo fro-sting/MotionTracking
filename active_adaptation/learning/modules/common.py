@@ -42,7 +42,11 @@ quat_rotate_inverse = batchify(quat_rotate_inverse)
 OBS_KEY = "robot"
 OBS_PRIV_KEY = "priv"
 OBS_HIST_KEY = "history"
+OBS_REF_PUBLIC_KEY = "ref_motion_public"
+OBS_REF_PRIVATE_KEY = "ref_motion_private"
+
 OBS_REF_KEY = "ref_motion_"
+
 ACTION_KEY = "action" # ("agents", "action")
 REWARD_KEY = ("next", "reward") # ("agents", "reward")
 # DONE_KEY = ("next", "done")
