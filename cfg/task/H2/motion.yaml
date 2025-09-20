@@ -113,7 +113,6 @@ reward:
                                         right_ankle_roll_link, right_wrist_yaw_link]}
     tracking_contact:       {weight: 2., enabled: true}
 
-    # feet_orientation:   {weight: 0.5, enabled: true, feet_names: .*ankle_roll_link, body_name: pelvis}
     feet_slip:          {weight: 1.0, enabled: true, body_names: .*ankle_roll_link}
 
     action_rate_l2:     {weight: 0.25, enabled: true}

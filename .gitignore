@@ -192,3 +192,6 @@ scripts/videos
 checkpoint*.pt
 test/
 *.csv
+
+#meshes
+active_adaptation/assets_mjcf/
