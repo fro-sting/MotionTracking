@@ -8,7 +8,7 @@ viewer:
   eye: [3.0, 3.0, 3.0]
 
 robot: 
-  name: g1_27dof
+  name: g1_29dof
 terrain: plane
 
 num_envs: 4096

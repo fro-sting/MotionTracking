@@ -7,11 +7,7 @@ from .scene import *
 ASSET_PATH = os.path.dirname(__file__)
 
 ROBOTS = {
-    "g1": G1_CFG,
-    "g1_27dof": G1_27DOF_CFG,
-    "g1_23dof": G1_23DOF_CFG,
     "g1_29dof": G1_29DOF_CFG,
-    "h2": H2_CFG,
 }
 
 
