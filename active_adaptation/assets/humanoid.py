@@ -10,14 +10,14 @@ import active_adaptation.utils.symmetry as symmetry_utils
 
 from .base import ArticulationCfg
 
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DESCRIPTION_DIR = os.path.join(BASE_DIR, "g1_description")
 
-ASSET_PATH = os.path.dirname(__file__)
-
-G1_29DOF_CFG = ArticulationCfg( # no wrist pitch and yaw
+G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         fix_base=False,
         replace_cylinders_with_capsules=True,
-        urdf_path=f"{ASSET_PATH}/unitree_description/urdf/g1/main.urdf",
+        asset_path=f"{DESCRIPTION_DIR}/g1_29dof_rev_1_0.urdf",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

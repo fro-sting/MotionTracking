@@ -1,2 +1,2 @@
 # from .locomotion import Command1, Command2
-from .motionlib import MotionLib, MotionLibH2
+from .motionlib import MotionLib, MotionLibG1

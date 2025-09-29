@@ -49,10 +49,9 @@ class MotionLib(Command):
         ):
         super().__init__(env, teleop=teleop)
         self.robot: Articulation = env.scene["robot"]
-
         package_dir = os.path.dirname(package_path)
 
-        occlusion_path = os.path.join(package_dir, "..", motion_clip_dir, occlusion)
+        occlusion_path = os.path.join(package_dir, "..", motion_clip_dir, "..", occlusion)
         occlusion_keys = list(joblib.load(occlusion_path).keys())
 
         motion_clip = os.path.join(package_dir, "..", motion_clip_dir, dataset) + ".pkl"
@@ -373,54 +372,62 @@ SMPL_BONE_ORDER_NAMES = [
     "R_Hand",
 ]
 
-class MotionLibH2(MotionLib):
+class MotionLibG1(MotionLib):
     source_fps: int = 30
     target_fps: int = 50
     isaacsim_joints = [
-                "left_hip_yaw_joint", "right_hip_yaw_joint", 
-                "torso_joint", 
-                "left_hip_pitch_joint", "right_hip_pitch_joint", 
-                "left_shoulder_pitch_joint", "right_shoulder_pitch_joint", 
-                "left_hip_roll_joint", "right_hip_roll_joint", 
-                "left_shoulder_roll_joint", "right_shoulder_roll_joint", 
-                "left_knee_joint", "right_knee_joint", 
-                "left_shoulder_yaw_joint", "right_shoulder_yaw_joint", 
-                "left_ankle_pitch_joint", "right_ankle_pitch_joint", 
-                "left_elbow_joint", "right_elbow_joint", 
-                "left_ankle_roll_joint", "right_ankle_roll_joint", 
-                "left_wrist_roll_joint", "right_wrist_roll_joint", 
-                "left_wrist_pitch_joint", "right_wrist_pitch_joint", 
-                "left_wrist_yaw_joint", "right_wrist_yaw_joint"
-            ]
+        'left_hip_pitch_joint', 'right_hip_pitch_joint', 
+        'waist_yaw_joint', 
+        'left_hip_roll_joint', 'right_hip_roll_joint', 
+        'waist_roll_joint', 
+        'left_hip_yaw_joint', 'right_hip_yaw_joint', 
+        'waist_pitch_joint', 
+        'left_knee_joint', 'right_knee_joint', 
+        'left_shoulder_pitch_joint', 'right_shoulder_pitch_joint', 
+        'left_ankle_pitch_joint', 'right_ankle_pitch_joint', 
+        'left_shoulder_roll_joint', 'right_shoulder_roll_joint', 
+        'left_ankle_roll_joint', 'right_ankle_roll_joint', 
+        'left_shoulder_yaw_joint', 'right_shoulder_yaw_joint', 
+        'left_elbow_joint', 'right_elbow_joint', 
+        'left_wrist_roll_joint', 'right_wrist_roll_joint', 
+        'left_wrist_pitch_joint', 'right_wrist_pitch_joint', 
+        'left_wrist_yaw_joint', 'right_wrist_yaw_joint'
+    ]
     mujoco_joints = [
-                "left_hip_yaw_joint",
-                "left_hip_pitch_joint",
-                "left_hip_roll_joint",
-                "left_knee_joint",
-                "left_ankle_pitch_joint",
-                "left_ankle_roll_joint",
-                "right_hip_yaw_joint",
-                "right_hip_pitch_joint",
-                "right_hip_roll_joint",
-                "right_knee_joint",
-                "right_ankle_pitch_joint",
-                "right_ankle_roll_joint",
-                "torso_joint",
-                "left_shoulder_pitch_joint",
-                "left_shoulder_roll_joint",
-                "left_shoulder_yaw_joint",
-                "left_elbow_joint",
-                "left_wrist_roll_joint",
-                "left_wrist_pitch_joint",
-                "left_wrist_yaw_joint",
-                "right_shoulder_pitch_joint",
-                "right_shoulder_roll_joint",
-                "right_shoulder_yaw_joint",
-                "right_elbow_joint",
-                "right_wrist_roll_joint",
-                "right_wrist_pitch_joint",
-                "right_wrist_yaw_joint"
-            ]
+        "left_hip_pitch_joint",
+        "left_hip_roll_joint",
+        "left_hip_yaw_joint",
+        "left_knee_joint",
+        "left_ankle_pitch_joint",
+        "left_ankle_roll_joint",
+
+        "right_hip_pitch_joint",
+        "right_hip_roll_joint",
+        "right_hip_yaw_joint",
+        "right_knee_joint",
+        "right_ankle_pitch_joint",
+        "right_ankle_roll_joint",
+
+        "waist_yaw_joint",
+        "waist_roll_joint",
+        "waist_pitch_joint",
+
+        "left_shoulder_pitch_joint",
+        "left_shoulder_roll_joint",
+        "left_shoulder_yaw_joint",
+        "left_elbow_joint",
+        "left_wrist_roll_joint",
+        "left_wrist_pitch_joint",
+        "left_wrist_yaw_joint",
+
+        "right_shoulder_pitch_joint",
+        "right_shoulder_roll_joint",
+        "right_shoulder_yaw_joint",
+        "right_elbow_joint",
+        "right_wrist_roll_joint",
+        "right_wrist_pitch_joint",
+        "right_wrist_yaw_joint"
+    ]
     
     def __init__(
             self, 
