@@ -2,6 +2,8 @@ from math import inf
 import torch
 from typing import Sequence, TYPE_CHECKING
 
+from isaaclab.utils.math import quat_error_magnitude
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.sensors import ContactSensor, RayCaster, Imu
@@ -20,7 +22,6 @@ quat_rotate_inverse = batchify(quat_rotate_inverse)
 from tensordict.tensordict import TensorDictBase, TensorDict
 
 from active_adaptation.envs.locomotion import SimpleEnv
-
 import active_adaptation.envs.mdp as mdp
 
 ADAPTIVE_SIGMA = {
@@ -28,8 +29,8 @@ ADAPTIVE_SIGMA = {
         "tracking_root_trans": 0.16,
         "tracking_root_rot": 0.16,
         "tracking_qpos": 0.16,
-        "tracking_keypoints": 0.36,
-        "tracking_eff": 0.36
+        "tracking_kp_pos": 0.36,
+        "tracking_kp_quat": 0.36,
     },
     "params": {
         "alpha": 1e-3
@@ -198,8 +199,7 @@ class Humanoid(SimpleEnv):
             timestep = (self.env.episode_length_buf-1).cpu()
             ref_root_orientation = self.env.command_manager.root_quat_w[timestep].to(self.device)
             root_quat_w = self.robot.data.root_quat_w
-            dot_product = dot(root_quat_w, ref_root_orientation)
-            error = 2 * torch.acos(dot_product.abs().clamp(min=-1.0, max=1.0))
+            error = (quat_error_magnitude(root_quat_w, ref_root_orientation) ** 2).unsqueeze(-1)
             # reward = torch.exp(- error / self.sigma)
             reward = torch.exp(- error / self.env._adaptive_sigma["tracking_root_rot"])
             self.env._update_adaptive_sigma(error.mean(), "tracking_root_rot")
@@ -221,7 +221,7 @@ class Humanoid(SimpleEnv):
             self.env._update_adaptive_sigma(error.mean(), "tracking_qpos")
             return reward
         
-    class tracking_keypoints(mdp.Reward):
+    class tracking_kp_pos(mdp.Reward):
         def __init__(self, env, weight: float, enabled: bool = True):
             super().__init__(env, weight, enabled)
             self.robot: Articulation = self.env.scene["robot"]
@@ -237,8 +237,25 @@ class Humanoid(SimpleEnv):
             diff = (ref_keypoints - body_pos_global).norm(dim=-1)
             error = diff.square().sum(-1, True).sqrt()
             # reward = torch.exp(- error / self.sigma)
-            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_keypoints"])
-            self.env._update_adaptive_sigma(error.mean(), "tracking_keypoints")
+            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_kp_pos"])
+            self.env._update_adaptive_sigma(error.mean(), "tracking_kp_pos")
+            return reward
+        
+    class tracking_kp_quat(mdp.Reward):
+        def __init__(self, env, weight: float, enabled: bool = True):
+            super().__init__(env, weight, enabled)
+            self.robot: Articulation = self.env.scene["robot"]
+            self.keypoint_body_index = self.env.command_manager.keypoint_body_index
+
+        def compute(self) -> torch.Tensor:
+            timestep = (self.env.episode_length_buf-1).cpu()
+            ref_keypoints = self.env.command_manager.body_quat_w[timestep][:, self.keypoint_body_index].to(self.device)
+
+            body_quat_w = self.robot.data.body_quat_w[:, self.keypoint_body_index]
+            error = quat_error_magnitude(body_quat_w, ref_keypoints).mean(-1, True)
+
+            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_kp_quat"])
+            self.env._update_adaptive_sigma(error.mean(), "tracking_kp_quat")
             return reward
 
     # Early Termination Conditions
@@ -282,25 +299,24 @@ class Humanoid(SimpleEnv):
 
             return deviation > self.max_theta
         
-    # class track_kp_error(mdp.Termination):
-    #     def __init__(self, env, max_distance: float, body_names: str = ".*"):
-    #         super().__init__(env)
-    #         self.device = self.env.device
-    #         self.max_distance = torch.tensor(max_distance, device=self.env.device)
-    #         self.robot: Articulation = self.env.scene["robot"]
-    #         self.body_indices, self.body_names = self.robot.find_bodies(body_names, preserve_order=True)
-    #         self.idx = [self.env.command_manager.bodys.index(name) for name in self.body_names]
+    class track_kp_error(mdp.Termination):
+        def __init__(self, env, max_distance: float, body_names: str = ".*"):
+            super().__init__(env)
+            self.device = self.env.device
+            self.max_distance = torch.tensor(max_distance, device=self.env.device)
+            self.robot: Articulation = self.env.scene["robot"]
+            self.body_indices = [self.robot.body_names.index(name) for name in body_names]
 
-    #     def compute(self, termination: torch.Tensor) -> torch.Tensor:
-    #         timestep = (self.env.episode_length_buf - 1).cpu()
-    #         ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.idx].to(self.device)
-    #         ref_keypoints.add_(self.env.scene.env_origins[:, None])
+        def compute(self, termination: torch.Tensor) -> torch.Tensor:
+            timestep = (self.env.episode_length_buf - 1).cpu()
+            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.body_indices].to(self.device)
+            ref_keypoints.add_(self.env.scene.env_origins[:, None])
 
-    #         body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
+            body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
 
-    #         diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
-    #         mean_diff = diff.mean(-1, True)     # (num_envs, 1)
-    #         return mean_diff > self.max_distance
+            diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
+            mean_diff = diff.mean(-1, True)     # (num_envs, 1)
+            return mean_diff > self.max_distance
 
 def dot(a: torch.Tensor, b: torch.Tensor):
     return (a * b).sum(-1, True)

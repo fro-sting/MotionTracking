@@ -92,8 +92,8 @@ randomization:
     # .*: [0.9, 1.1]
   perturb_body_materials:
     body_names: ".*ankle_roll_link"
-    static_friction_range: [0.6, 4.0]
-    dynamic_friction_range: [0.6, 4.0]
+    static_friction_range: [0.3, 4.0]
+    dynamic_friction_range: [0.3, 4.0]
     restitution_range: [0.0, 0.2]
   motor_params_implicit:
     stiffness_range:
@@ -111,6 +111,6 @@ termination:
   # dummy: {}
   root_deviation: {max_distance: 0.4}
   root_rot_deviation: {max_theta: 30}
-  # track_kp_error: {max_distance: 0.5, 
-  #                 body_names: [ left_wrist_yaw_link, right_wrist_yaw_link,
-  #                               left_ankle_roll_link, right_ankle_roll_link]}
+  track_kp_error: {max_distance: 0.5, 
+                  body_names: [ left_wrist_yaw_link, right_wrist_yaw_link,
+                                left_ankle_roll_link, right_ankle_roll_link]}

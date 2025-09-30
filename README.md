@@ -14,9 +14,6 @@
 1. For the following steps, the recommended way to structure the (VSCode or Cursor) workspace is:
    ```bash
     ${workspaceFolder}/ # File->Open Folder here
-      .vscode/
-        launch.json # use vscode Python debugging for better experience!
-        settings.json
       active-adaptation/
       IsaacLab/
         _isaac_sim/
@@ -24,28 +21,21 @@
 2. Install [Isaac Sim 4.5.0](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html) by downloading the latest release and unzip it to a desired location `$ISAACSIM_PATH`.
 3. Install [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and setup a conda environment:
    ```bash
-   conda create -n lab python=3.10
-   conda activate lab
+   conda create -n <env> python=3.10
+   conda activate <env>
    # install IsaacLab to the exisiting conda environment
    # git clone https://github.com/isaac-sim/IsaacLab.git
    git clone git@github.com:isaac-sim/IsaacLab.git # SSH recommended
    cd IsaacLab
    ln -s $ISAACSIM_PATH _isaac_sim
-   ./isaaclab.sh -c lab
+   ./isaaclab.sh -c <env>
    ./isaaclab.sh -i none # install without additional RL libraries
    # reactivate the environment
-   conda activate lab
+   conda activate <env>
    echo $PYTHONPATH 
    ```
    You should see the isaac-sim related dependencies are added to `$PYTHONPATH`.
-4. [**Recommended**] Isaac Sim comes with its cumstom Python environment which may lead to conflicts with our conda environment.
-   To avoid Python environment conflicts, try the following steps:
-   ```bash
-   cd $ISAACSIM_PATH/exts/omni.isaac.ml_archive
-   mv pip_prebundle pip_prebundle.back # backup the packages shipped with Isaac Sim
-   ln -s $CONDA_PREFIX/lib/python3.10/site-packages
-   ```
-5. [**Optional**] VSCode setup. This enables the Python extension for code analysis to provide auto-completiong and linting. Edit `.vscode/settings.json` on demand:
+4. [**Optional**] VSCode setup. This enables the Python extension for code analysis to provide auto-completiong and linting. Edit `.vscode/settings.json` on demand:
    ```json
    "python.analysis.extraPaths": [
         // Recommended
@@ -65,7 +55,7 @@
 6. `pip install -U torch torchvision tensordict torchrl`
 7. Install this repo:
    ```bash
-   git clone git@github.com:btx0424/active-adaptation.git # SSH recommended
+   git clone git@github.com:xiaohu-art/MotionTracking.git # SSH recommended
    cd active-adaptation
    pip install -e . 
    ```
@@ -77,86 +67,121 @@ We use Hydra for configuration management. Each task is specified by a yaml file
 
 ```yaml
 # @package task
-name: Go2Flat
-task: Quadruped
+name: motion
 
-robot: go2
+viewer:
+  resolution: [1280, 720]
+  lookat: [0., 0., 0.]
+  eye: [3.0, 3.0, 3.0]
+
+robot: 
+  name: g1_29dof
 terrain: plane
-payload: false
-homogeneous: false
+
+num_envs: 4096
+max_episode_length: 1000
+
+sim:
+  step_dt: 0.02
+  isaac_physics_dt: 0.005
+  mujoco_physics_dt: 0.002
 
 action:
   _target_: active_adaptation.envs.mdp.action.JointPosition
-  joint_names: .*_joint
-  action_scaling: {.*_joint: 0.5}
-  max_delay: 2
-  alpha: [0.5, 1.0]
+  action_scaling:
+    .*hip.*: 0.5
+    .*knee.*: 0.5
+    .*ankle_pitch.*: 0.5
+    waist_yaw_joint: 0.5
+    .*shoulder.*: 0.5
+    .*elbow.*: 0.5
+  max_delay: 1
+  alpha: [0.6, 0.8]
 
 command:
-  _target_: active_adaptation.envs.mdp.Command2
-  linvel_x_range: [-1.0, 2.0]
-  linvel_y_range: [-0.7, 0.7]
-  angvel_range:   [-2.0, 2.0]
-  yaw_stiffness_range: [0.5, 0.7]
-  use_stiffness_ratio: 0.99
-  aux_input_range: [.5, 1.]
-  resample_prob: 0.5
-  stand_prob: 0.02
-  target_yaw_range: 
-    - [-0.3927,  0.3927]
-    - [ 1.1781,  1.9635]
-    - [ 2.7489,  3.5343]
-    - [ 4.3197,  5.1051]
-  adaptive: true
-
+  _target_: active_adaptation.envs.mdp.MotionLibG1
+  motion_clip_dir: "scripts/data/g1"
+  dataset: amass_train
+  occlusion: "amass_copycat_occlusion_v3.pkl"
+  mode: train
+  eval_id: null
+  
 observation:
-  policy:
-    command:
-    projected_gravity_b: {noise_std: 0.05}
-    joint_pos:    {noise_std: 0.05, joint_names: .*_joint}
-    joint_vel:    {noise_std: 0.4, joint_names: .*_joint}
-    prev_actions: {steps: 3}
+  robot:
+    root_quat_w:
+    root_angvel_b:        {noise_std: 0.05}
+    projected_gravity_b:  {noise_std: 0.01}
+    joint_pos:            {noise_std: 0.05}
+    joint_vel:            {noise_std: 0.2}
+    body_pos:             {body_names: [left_hip_pitch_link, right_hip_pitch_link, 
+                                        left_knee_link, right_knee_link, 
+                                        left_ankle_roll_link, right_ankle_roll_link, 
+                                        left_shoulder_roll_link, right_shoulder_roll_link, 
+                                        left_elbow_link, right_elbow_link, 
+                                        left_wrist_yaw_link, right_wrist_yaw_link], 
+                                        yaw_only: false}
+    prev_actions:         {steps: 1}
+  ref_motion_:
+    ref_orientation:      {}
+    ref_qpos:             {}
+    ref_kp_pos_gap:       {}
+    ref_trans_gap:        {}
   priv:
-    applied_action:
-    root_linvel_b:    {yaw_only: true}
-    root_angvel_b:
-    feet_pos_b:
-    feet_vel_b:
-    feet_height_map:  {feet_names: .*foot }
-    applied_torques:  {actuator_name: base_legs}
-    joint_forces:     {joint_names: .*_joint}
-    external_forces:  {body_names: ["base"]}
-    contact_indicator:  {body_names: [".*_foot", ".*_calf"], timing: true}
+    root_height:      {}
+    root_linvel_b:    {}
+    body_vel:         {body_names: [left_hip_pitch_link, right_hip_pitch_link, 
+                                    left_knee_link, right_knee_link, 
+                                    left_ankle_roll_link, right_ankle_roll_link, 
+                                    left_shoulder_roll_link, right_shoulder_roll_link, 
+                                    left_elbow_link, right_elbow_link, 
+                                    left_wrist_yaw_link, right_wrist_yaw_link], 
+                                    yaw_only: false}
+    # joint_forces:     {}
 
 reward:
   loco:
-    linvel_exp:         {weight: 1.5, enabled: true, dim: 3, yaw_only: true}
-    angvel_z_exp:       {weight: 0.75, enabled: true}
-    angvel_xy_l2:       {weight: 0.02, enabled: true}
-    linvel_z_l2:        {weight: 2.0, enabled: true}
-    base_height_l1:     {weight: 0.5, enabled: true, target_height: 0.35}
-    energy_l1:          {weight: 0.0002, enabled: true}
-    joint_acc_l2:       {weight: 2.5e-7, enabled: true}
-    joint_torques_l2:   {weight: 2.0e-4, enabled: true}
-    quadruped_stand:    {weight: 0.5}
-    survival:           {weight: 1.0, enabled: true}
-    action_rate_l2:     {weight: 0.01, enabled: true}
-    feet_air_time:      {weight: 0.4, enabled: true, body_names: .*_foot, thres: 0.4}
-  debug:
-    feet_slip:          {weight: 1.0, enabled: false, body_names: .*_foot}
-    feet_contact_count: {weight: 1.0, enabled: false, body_names: .*_foot}
-    undesired_contact:  {body_names: [.*_calf, .*thigh, Head.*], weight: 0.25, enabled: true}
+    tracking_root_trans:    {weight: 2., enabled: true}
+    tracking_root_rot:      {weight: 2., enabled: true}
+    tracking_qpos:          {weight: 2., enabled: true}
+    tracking_keypoints:     {weight: 3., enabled: true}
 
-termination: # terminate upon any of the following checks being satisfied
-  crash: {body_names_expr: [Head.*, "base"], t_thres: 0.5, z_thres: 0.}
-  # joint_acc_exceeds: {thres: 5000}
-  cum_error: {thres: 1.0}
+    feet_slip:          {weight: 1.0, enabled: true, body_names: .*ankle_roll_link}
+
+    action_rate_l2:     {weight: 0.5, enabled: true}
 
 randomization:
-  random_scale: [1.0, 1.0]
+  push:
+    body_names: ["torso_link", "pelvis"]
+    force_range: [0.0, 0.1]
   perturb_body_mass:
-    (?!(payload|base|Head.*)).*: [0.8, 1.2]
-    base: [0.8, 1.4]
+    ".*wrist_yaw_link": [1.0, 2.0]
+    "^(?!.*wrist_yaw_link).*": [0.9, 1.1]
+    # .*: [0.9, 1.1]
+  perturb_body_materials:
+    body_names: ".*ankle_roll_link"
+    static_friction_range: [0.3, 4.0]
+    dynamic_friction_range: [0.3, 4.0]
+    restitution_range: [0.0, 0.2]
+  motor_params_implicit:
+    stiffness_range:
+      .*: [0.8, 1.1]
+    damping_range:
+      .*: [0.8, 1.1]
+    armature_range:
+      .*: [0.0, 0.01]
+  reset_joint_states_uniform:
+    pos_ranges:
+      .*: [-0.1, 0.1]
+    rel: true
+
+termination:
+  # dummy: {}
+  root_deviation: {max_distance: 0.4}
+  root_rot_deviation: {max_theta: 30}
+  track_kp_error: {max_distance: 0.5, 
+                  body_names: [ left_wrist_yaw_link, right_wrist_yaw_link,
+                                left_ankle_roll_link, right_ankle_roll_link]}
+
 ```
 
 Observations are grouped by keys and the observation of the same group is concatenated.
@@ -168,39 +193,15 @@ Rewards are grouped by keys and the rewards of the same group is summed up, excl
 Examples:
 
 ```bash
-python test_env.py task=Go2/Go2Flat algo=ppo
+python test_env.py task=G1/motion algo=ppo
 # hydra command-line overrides
-python test_env.py task=Go2/Go2Flat algo=ppo algo.entropy_coef=0.002 total_frames=200_000_000 task.terrain=medium
+python test_env.py task=G1/motion algo=ppo algo.entropy_coef=0.002 total_frames=200_000_000 wandb.mode=disabled
 # finetuning
-python test_env.py task=Go2/Go2Flat algo=ppo checkpoint_path=${local_checkpoint_path}
-python test_env.py task=Go2/Go2Flat algo=ppo checkpoint_path=run:${wandb_run_path}
+python test_env.py task=G1/motion algo=ppo checkpoint_path=${local_checkpoint_path}
+python test_env.py task=G1/motion algo=ppo checkpoint_path=run:${wandb_run_path}
 # multi-GPU training
 export OMP_NUM_THREADS=4 # a number greater than 1
-python -m torch.distributed --nnodes=1 --nproc-per-node=4 ...
-```
-
-### VSCode/Cursor Python Debugging
-
-Create and modify `.vscode/launch.json` to add debug configurations. For example:
-```json
-"configurations": [
-  {
-      "name": "Python Debugger: Go2 Loco",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "env": {"CUDA_VISIBLE_DEVICES": "0"},
-      "args": [
-          "task=Go2/Go2Force",
-          "algo=ppo_dic_train",
-          "algo.symaug=True",
-          "wandb.mode=disabled",
-          "task.num_envs=16"
-      ]
-  }
-]
+torchrun --nnodes=1 --nproc-per-node=4 ...
 ```
 
 ### Evaluation and Visualization
@@ -209,29 +210,18 @@ Examples:
 
 ```bash
 # play the policy
-python play.py task=Go2/Go2Flat algo=ppo checkpoint_path=${local_checkpoint_path}
-python play.py task=Go2/Go2Flat algo=ppo checkpoint_path=run:${wandb_run_path}
+python play.py task=G1/motion algo=ppo task.num_envs=1 task.command.dataset=sfu checkpoint_path=${local_checkpoint_path}
 # mujoco sim2sim verification, requires MJCF assets to be specified
-python play_mujoco.py task=Go2/Go2Flat algo=ppo
+python play_mujoco.py task=...
 # export to onnx for deployment
-python play.py task=Go2/Go2Flat algo=ppo export_policy=true
+python play.py task=... export_policy=true
 # record video
-python eval.py task=Go2/Go2Flat algo=ppo eval_render=true
-# coordination with servers or other collaborators
-python eval_run.py --run_path ${wandb_run_path} --play # eval/visualize remote runs
+python eval.py task=... task.command.eval_id=0 eval_render=true headless=false
 ```
 
 ## Development Guide
 
-### 1. Asset Specification
-
-We borrow the asset specification and management of [IsaacLab](): each robot specification is defined with an `ArticulationCfg` in `active_adaptation/assets/` and stored in `active_adaptation.assets.ROBOTS`.
-
-For Mujoco sim2sim verification (optional), provide a MJCF file that aligns with the USD and put the MJCF under `active_adaptation/assets_mjcf/`. We may implement USD-to-MJCF exporting in the future.
-
-For symmetry augmentation, provide joint- and cartesian-space mappings that specify the left-right symmetry of a robot. See `assets.quadruped` for examples.
-
-### 2. Task Definition
+### Task Definition
 
 All components, including action, command, observation, reward, termination condition are defined by subclassing the base class. The base classes have a series of callbacks that will be called at each environment step:
 
@@ -285,13 +275,11 @@ TensorDict(
     fields={
         action: Tensor(shape=torch.Size([4096, 32, 12]), device=cuda:0, dtype=torch.float32, is_shared=True),
         done: Tensor(shape=torch.Size([4096, 32, 1]), device=cuda:0, dtype=torch.bool, is_shared=True),
-        height_scan_: Tensor(shape=torch.Size([4096, 32, 1, 21, 21]), device=cuda:0, dtype=torch.float32, is_shared=True),
         is_init: Tensor(shape=torch.Size([4096, 32, 1]), device=cuda:0, dtype=torch.bool, is_shared=True),
         next: TensorDict(
             fields={
                 discount: Tensor(shape=torch.Size([4096, 32, 1]), device=cuda:0, dtype=torch.float32, is_shared=True),
                 done: Tensor(shape=torch.Size([4096, 32, 1]), device=cuda:0, dtype=torch.bool, is_shared=True),
-                height_scan_: Tensor(shape=torch.Size([4096, 32, 1, 21, 21]), device=cuda:0, dtype=torch.float32, is_shared=True),
                 is_init: Tensor(shape=torch.Size([4096, 32, 1]), device=cuda:0, dtype=torch.bool, is_shared=True),
                 policy: Tensor(shape=torch.Size([4096, 32, 100]), device=cuda:0, dtype=torch.float32, is_shared=True),
                 stats: TensorDict(
