@@ -27,7 +27,7 @@ camera_follow: true
 wandb:
   name: ${..exp_name}/${now:%m-%d}_${now:%H-%M}
   job_type: train
-  project: sim2real
+  project: test
   mode: online # online, disabled
   tags: []
 

@@ -55,10 +55,9 @@ observation:
                                         yaw_only: false}
     prev_actions:         {steps: 1}
   ref_motion_:
-    ref_orientation:      {}
     ref_qpos:             {}
     ref_kp_pos_gap:       {}
-    ref_trans_gap:        {}
+    ref_kp_quat:          {}
   priv:
     root_height:      {}
     root_linvel_b:    {}
@@ -73,10 +72,13 @@ observation:
 
 reward:
   loco:
-    tracking_root_trans:    {weight: 2., enabled: true}
-    tracking_root_rot:      {weight: 2., enabled: true}
-    tracking_qpos:          {weight: 2., enabled: true}
-    tracking_keypoints:     {weight: 3., enabled: true}
+    tracking_root_trans:    {weight: 1., enabled: true}
+    tracking_root_rot:      {weight: 1., enabled: true}
+    tracking_qpos:          {weight: 1., enabled: true}
+    tracking_kp_pos:        {weight: 2., enabled: true}
+    tracking_kp_quat:       {weight: 2, enabled: true}
+    tracking_kp_lin_vel:    {weight: 2., enabled: true}
+    tracking_kp_ang_vel:    {weight: 2., enabled: true}
 
     feet_slip:          {weight: 1.0, enabled: true, body_names: .*ankle_roll_link}
 
