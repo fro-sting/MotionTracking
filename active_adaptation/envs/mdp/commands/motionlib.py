@@ -67,7 +67,6 @@ class MotionLib(Command):
         self.env_origin = self.env.scene.env_origins
         self.joint_matches = joint_matches
         self.bodys = [j[0] for j in joint_matches]
-        self.default_qpos, self.default_bpos = self.get_robot_default()
         self.load_data(data)
         print(f"Loaded {len(data)} motion clips with {self.num_frames} frames.")
 
@@ -156,16 +155,7 @@ class MotionLib(Command):
             self.failures.index_add_(0, mids[valid], failed[valid])
 
         self.curr_motion_id[env_ids] = -1
-
-    def get_robot_default(self):
-        default_qpos = self.robot.data.default_joint_pos[0]
-        root_position = self.robot.data.root_pos_w.unsqueeze(1)
-        root_quat = self.robot.data.root_quat_w.unsqueeze(1)
-        body_pos_b = self.robot.data.body_pos_w - root_position
-        default_bpos = quat_rotate_inverse(root_quat, body_pos_b)[0]
-        body_ids, body_names = self.robot.find_bodies(self.bodys, preserve_order=True)
-        return default_qpos.cpu(), default_bpos.cpu()[body_ids]
-
+        
     def mujoco_to_isaac(self):
         mujoco_to_isaac = []
         for joint in self.isaacsim_joints:
