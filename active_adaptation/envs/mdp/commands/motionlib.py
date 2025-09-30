@@ -1,8 +1,9 @@
+from ast import List
 from math import pi
 import torch
 import torch.distributions as D
 import torch.nn.functional as F
-from typing import Sequence, TYPE_CHECKING
+from typing import Sequence, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -32,17 +33,14 @@ quat_rotate_inverse = batchify(quat_rotate_inverse)
 CURRENT_MOTION = 0
 
 class MotionLib(Command):
-    source_fps: int = 30
-    target_fps: int = 50
-    isaacsim_joints: list = []
-    mujoco_joints: list = []
     def __init__(
             self, 
             env,
             motion_clip_dir: str,
             dataset: str,
             occlusion: str,
-            joint_matches: list,
+            root_body: str = "pelvis",
+            keypoint_body: List[str] = None,
             mode: str = "train",
             eval_id: int = None,
             teleop: bool = False,
@@ -65,9 +63,12 @@ class MotionLib(Command):
             data = {data_keys[eval_id]: data[data_keys[eval_id]]}
         
         self.env_origin = self.env.scene.env_origins
-        self.joint_matches = joint_matches
-        self.bodys = [j[0] for j in joint_matches]
+        self.root_body_index = self.robot.body_names.index(root_body)
+        self.keypoint_body_index = [self.robot.body_names.index(body) for body in keypoint_body]
+
         self.load_data(data)
+        assert len(self.robot.body_names) == self.body_pos_w.shape[1]
+        assert len(self.robot.joint_names) == self.joint_pos.shape[1]
         print(f"Loaded {len(data)} motion clips with {self.num_frames} frames.")
 
         self.min_weight = 3e-3
@@ -125,19 +126,26 @@ class MotionLib(Command):
             start_frames += offsets
 
         init_root_state = self.init_root_state[env_ids]     # (num_envs, 3 + 4 + 6) root position, root orientation, root linear velocity and root angular velocity
-        init_root_state[:, :3] = self.root_translations[start_frames].to(self.device) + self.env_origin[env_ids]
+        init_root_state[:, :3] = self.root_pos_w[start_frames].to(self.device) + self.env_origin[env_ids]
         init_root_state[:, :3] += torch.tensor([0, 0, 0.01], device=self.device)
-        init_root_state[:, 3:7] = self.root_orientation[start_frames].to(self.device)
+        init_root_state[:, 3:7] = self.root_quat_w[start_frames].to(self.device)
+        init_root_state[:, 7:10] = self.root_lin_vel_w[start_frames].to(self.device)
+        init_root_state[:, 10:] = self.root_ang_vel_w[start_frames].to(self.device)
+        self.robot.write_root_state_to_sim(
+                init_root_state, 
+                env_ids=env_ids
+            )
 
-        qpos = self.qpos[start_frames].to(self.device)
+        joint_pos = self.joint_pos[start_frames].to(self.device)
+        joint_vel = self.joint_vel[start_frames].to(self.device)
         self.robot.write_joint_state_to_sim(
-            qpos,
-            self.robot.data.default_joint_vel[env_ids],
+            joint_pos,
+            joint_vel,
             joint_ids = slice(None),
             env_ids=env_ids
         )
         
-        return init_root_state, start_frames.to(self.device), end_frames.to(self.device)
+        return start_frames.to(self.device), end_frames.to(self.device)
     
     def reset(self, env_ids: torch.Tensor):
         pass
@@ -156,94 +164,51 @@ class MotionLib(Command):
 
         self.curr_motion_id[env_ids] = -1
         
-    def mujoco_to_isaac(self):
-        mujoco_to_isaac = []
-        for joint in self.isaacsim_joints:
-            mujoco_index = self.mujoco_joints.index(joint)
-            mujoco_to_isaac.append(mujoco_index)
-        return mujoco_to_isaac
-
     def load_data(self, data):
         self.motion_length = []
-        self.phase = []
-        self.root_translations = []
-        self.root_orientation = []
-        self.root_linear = []
-        self.qpos = []
-        self.kp_global = []
-        self.kp_local = []
-        self.contact = []
-
-        mujoco_to_isaac_idx = self.mujoco_to_isaac()
-        smpl_idx = [SMPL_BONE_ORDER_NAMES.index(j[1]) for j in self.joint_matches]
+        self.joint_pos = []
+        self.joint_vel = []
+        self.body_pos_w = []
+        self.body_quat_w = []
+        self.body_lin_vel_w = []
+        self.body_ang_vel_w = []
 
         pbar = tqdm(data.items())
         for k, motion in pbar:
             pbar.set_description(f"Loading {k}: ")
-            interpolated_root_trans = self.interpolate(motion, "root_trans_offset", self.source_fps, self.target_fps)
-            interpolated_root_rot = self.interpolate(motion, "root_rot", self.source_fps, self.target_fps)
-            interpolated_qpos = self.interpolate(motion, "dof", self.source_fps, self.target_fps)
-            interpolated_kp_global = self.interpolate(motion, "smpl_joints", self.source_fps, self.target_fps)
-            interpolated_kp_local = convert2local(interpolated_kp_global, interpolated_root_rot)
+            joint_pos = torch.from_numpy(motion["joint_pos"])
+            joint_vel = torch.from_numpy(motion["joint_vel"])
+            body_pos_w = torch.from_numpy(motion["body_pos_w"])
+            body_quat_w = torch.from_numpy(motion["body_quat_w"])
+            body_lin_vel_w = torch.from_numpy(motion["body_lin_vel_w"])
+            body_ang_vel_w = torch.from_numpy(motion["body_ang_vel_w"])
 
-            contact = contact_from_positions(interpolated_kp_global, 
-                                            left_foot_idx=SMPL_BONE_ORDER_NAMES.index("L_Ankle"),
-                                            right_foot_idx=SMPL_BONE_ORDER_NAMES.index("R_Ankle"),
-                                            v_thresh=getattr(self, "v_thresh", 0.01),
-                                            h_thresh=None)
-
-            interpolated_kp_global = interpolated_kp_global[:, smpl_idx, :]
-            interpolated_kp_local = interpolated_kp_local[:, smpl_idx, :]
-
-            self.motion_length.append(interpolated_root_trans.shape[0])
-            self.phase.append(torch.linspace(0, 1, interpolated_root_trans.shape[0]))
-            self.root_translations.append(interpolated_root_trans)
-            self.root_linear.append(torch.diff(interpolated_root_trans,
-                                               dim=0,
-                                               append=torch.zeros(1, 3)) * self.target_fps)
-            self.root_orientation.append(interpolated_root_rot[:, [3, 0, 1, 2]])
-            self.qpos.append(interpolated_qpos[:, mujoco_to_isaac_idx])
-            self.kp_global.append(interpolated_kp_global)
-            self.kp_local.append(interpolated_kp_local)
-            self.contact.append(contact)
+            self.motion_length.append(joint_pos.shape[0])
+            self.joint_pos.append(joint_pos)
+            self.joint_vel.append(joint_vel)
+            self.body_pos_w.append(body_pos_w)
+            self.body_quat_w.append(body_quat_w)
+            self.body_lin_vel_w.append(body_lin_vel_w)
+            self.body_ang_vel_w.append(body_ang_vel_w)
 
         self.motion_length = torch.tensor(self.motion_length)
-        self.phase = torch.cat(self.phase, dim=0).float()
-        self.root_translations = torch.cat(self.root_translations, dim=0).float()
-        self.root_orientation = torch.cat(self.root_orientation, dim=0).float()
-        self.root_linear = torch.cat(self.root_linear, dim=0).float()
-        self.qpos = torch.cat(self.qpos, dim=0).float()
-        self.kp_global = torch.cat(self.kp_global, dim=0).float()
-        self.kp_local = torch.cat(self.kp_local, dim=0).float()
-        self.contact = torch.cat(self.contact, dim=0).float()
+        self.joint_pos = torch.cat(self.joint_pos, dim=0).float()
+        self.joint_vel = torch.cat(self.joint_vel, dim=0).float()
+        self.body_pos_w = torch.cat(self.body_pos_w, dim=0).float()
+        self.body_quat_w = torch.cat(self.body_quat_w, dim=0).float()
+        self.body_lin_vel_w = torch.cat(self.body_lin_vel_w, dim=0).float()
+        self.body_ang_vel_w = torch.cat(self.body_ang_vel_w, dim=0).float()
+
+        self.root_pos_w = self.body_pos_w[:, self.root_body_index]
+        self.root_quat_w = self.body_quat_w[:, self.root_body_index]
+        self.root_lin_vel_w = self.body_lin_vel_w[:, self.root_body_index]
+        self.root_ang_vel_w = self.body_ang_vel_w[:, self.root_body_index]
 
         self.num_motions = len(data)
-        self.num_frames = self.root_translations.shape[0]
+        self.num_frames = self.joint_pos.shape[0]
 
         self.start_frames = torch.cat([torch.zeros(1), self.motion_length.cumsum(dim=0)[:-1]]).long()
         self.end_frames = self.motion_length.cumsum(dim=0).long()
-
-    def interpolate(self, motion, key, source_fps, target_fps):
-        motion_data = motion[key]
-        motion_length = motion_data.shape[0]
-
-        source_time = np.linspace(0, motion_length / source_fps, motion_length)
-        target_length = int(np.ceil(motion_length * target_fps / source_fps))
-        target_time = np.linspace(0, motion_length / source_fps, target_length)
-
-        if key == "root_rot":
-            rotations = R.from_quat(motion_data)
-            slerp = Slerp(source_time, rotations)
-            interpolated_quats = slerp(target_time).as_quat()
-            return torch.tensor(interpolated_quats)
-
-        elif key in ["root_trans_offset", "dof", "smpl_joints"]:
-            interpolator = interp1d(source_time, motion_data, axis=0, kind="linear", fill_value="extrapolate")
-            interpolated = interpolator(target_time)
-            return torch.tensor(interpolated)
-
-        else:
-            raise NotImplementedError(f"Interpolation for key '{key}' is not implemented.")
 
     # # for sanity check
     # def update(self):
@@ -286,138 +251,9 @@ def contact_from_positions(kp_global, left_foot_idx, right_foot_idx, v_thresh=0.
     feet_still = torch.cat([feet_still[:1], feet_still], dim=0)     # (N, 2)
     return feet_still
 
-
-def convert2local(kp, root_orientation):
-    r'''
-    Args:
-        kp: (N, 24, 3)  torch tensor in global coordinate system
-        root_orientation: (N, 4)    in format of quaternion (x, y, z, w)
-    Returns:
-        smpl_kp: (N, 24, 3) in local coordinate system
-    '''
-    smpl_root = kp[:, 0:1, :]
-    smpl_kp = kp - smpl_root
-    root_orient_inv = torch.tensor(R.from_quat(root_orientation.cpu().numpy()).inv().as_matrix())
-    smpl_kp = torch.einsum('nij, nkj->nki', root_orient_inv, smpl_kp)
-    # animate_3d(smpl_kp, root_orientation)
-    return smpl_kp
-
-from matplotlib import pyplot as plt
-import matplotlib.animation as animation
-
-def animate_3d(joints, orientation):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    vis = 1
-
-    def update(num, data, line):
-        ax.clear()
-        ax.scatter(data[num][:, 0], data[num][:, 1], data[num][:, 2], c='y', marker='o')
-        ax.scatter(data[num][vis, 0], data[num][vis, 1], data[num][vis, 2], c='r', marker='*', s=50)
-
-        # unit_vector = np.array([1, 0, 0])
-        # unit_vector = R.apply(R.from_quat(orientation[num]), unit_vector)
-        # ax.quiver(0, 0, 0, unit_vector[0], unit_vector[1], unit_vector[2], color='r', length=0.5)
-
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-1, 1)
-        ax.set_zlim(-1, 1)
-        ax.set_title(f"Frame {num}")
-
-        ax.quiver(0, 0, 0, 1, 0, 0, color='r', length=0.1)
-        ax.quiver(0, 0, 0, 0, 1, 0, color='g', length=0.1)
-        ax.quiver(0, 0, 0, 0, 0, 1, color='b', length=0.1)
-        return line,
-
-    ani = animation.FuncAnimation(fig, update, frames=joints.shape[0], fargs=(joints, None), interval=50)
-    plt.show()
-            
-SMPL_BONE_ORDER_NAMES = [
-    "Pelvis",
-    "L_Hip",
-    "R_Hip",
-    "Torso",
-    "L_Knee",
-    "R_Knee",
-    "Spine",
-    "L_Ankle",
-    "R_Ankle",
-    "Chest",
-    "L_Toe",
-    "R_Toe",
-    "Neck",
-    "L_Thorax",
-    "R_Thorax",
-    "Head",
-    "L_Shoulder",
-    "R_Shoulder",
-    "L_Elbow",
-    "R_Elbow",
-    "L_Wrist",
-    "R_Wrist",
-    "L_Hand",
-    "R_Hand",
-]
-
 class MotionLibG1(MotionLib):
     source_fps: int = 30
     target_fps: int = 50
-    isaacsim_joints = [
-        'left_hip_pitch_joint', 'right_hip_pitch_joint', 
-        'waist_yaw_joint', 
-        'left_hip_roll_joint', 'right_hip_roll_joint', 
-        'waist_roll_joint', 
-        'left_hip_yaw_joint', 'right_hip_yaw_joint', 
-        'waist_pitch_joint', 
-        'left_knee_joint', 'right_knee_joint', 
-        'left_shoulder_pitch_joint', 'right_shoulder_pitch_joint', 
-        'left_ankle_pitch_joint', 'right_ankle_pitch_joint', 
-        'left_shoulder_roll_joint', 'right_shoulder_roll_joint', 
-        'left_ankle_roll_joint', 'right_ankle_roll_joint', 
-        'left_shoulder_yaw_joint', 'right_shoulder_yaw_joint', 
-        'left_elbow_joint', 'right_elbow_joint', 
-        'left_wrist_roll_joint', 'right_wrist_roll_joint', 
-        'left_wrist_pitch_joint', 'right_wrist_pitch_joint', 
-        'left_wrist_yaw_joint', 'right_wrist_yaw_joint'
-    ]
-    mujoco_joints = [
-        "left_hip_pitch_joint",
-        "left_hip_roll_joint",
-        "left_hip_yaw_joint",
-        "left_knee_joint",
-        "left_ankle_pitch_joint",
-        "left_ankle_roll_joint",
-
-        "right_hip_pitch_joint",
-        "right_hip_roll_joint",
-        "right_hip_yaw_joint",
-        "right_knee_joint",
-        "right_ankle_pitch_joint",
-        "right_ankle_roll_joint",
-
-        "waist_yaw_joint",
-        "waist_roll_joint",
-        "waist_pitch_joint",
-
-        "left_shoulder_pitch_joint",
-        "left_shoulder_roll_joint",
-        "left_shoulder_yaw_joint",
-        "left_elbow_joint",
-        "left_wrist_roll_joint",
-        "left_wrist_pitch_joint",
-        "left_wrist_yaw_joint",
-
-        "right_shoulder_pitch_joint",
-        "right_shoulder_roll_joint",
-        "right_shoulder_yaw_joint",
-        "right_elbow_joint",
-        "right_wrist_roll_joint",
-        "right_wrist_pitch_joint",
-        "right_wrist_yaw_joint"
-    ]
     
     def __init__(
             self, 
@@ -425,7 +261,15 @@ class MotionLibG1(MotionLib):
             motion_clip_dir: str,
             dataset: str,
             occlusion: str,
-            joint_matches: list,
+            root_body: str = "pelvis",
+            keypoint_body: List[str] = [
+                                        "left_hip_pitch_link", "right_hip_pitch_link", 
+                                        "left_knee_link", "right_knee_link", 
+                                        "left_ankle_roll_link", "right_ankle_roll_link", 
+                                        "left_shoulder_roll_link", "right_shoulder_roll_link", 
+                                        "left_elbow_link", "right_elbow_link", 
+                                        "left_wrist_yaw_link", "right_wrist_yaw_link"
+                                        ],
             mode: str = "train",
             eval_id: int = None,
             teleop: bool = False,
@@ -435,7 +279,8 @@ class MotionLibG1(MotionLib):
             motion_clip_dir,
             dataset,
             occlusion,
-            joint_matches,
+            root_body,
+            keypoint_body,
             mode,
             eval_id,
             teleop,
