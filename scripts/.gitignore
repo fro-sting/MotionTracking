@@ -4,3 +4,5 @@
 *.pdf
 *.onnx
 *.pkl
+
+**/data_process/
