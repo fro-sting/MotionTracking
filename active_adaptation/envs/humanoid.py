@@ -339,7 +339,8 @@ class Humanoid(SimpleEnv):
             body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
 
             diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
-            return (diff > self.threshold).any(dim=-1, keepdim=True)
+            # return (diff > self.threshold).any(dim=-1, keepdim=True)
+            return diff.mean(-1, True) > self.threshold
 
 def dot(a: torch.Tensor, b: torch.Tensor):
     return (a * b).sum(-1, True)

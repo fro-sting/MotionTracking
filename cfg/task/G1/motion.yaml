@@ -34,11 +34,16 @@ action:
 command:
   _target_: active_adaptation.envs.mdp.MotionLibG1
   motion_clip_dir: "scripts/data/g1"
-  dataset: [lafan]
+  dataset: [accad_29dof, bmlhandball_29dof, bmlmovi_29dof, bmlrub_29dof,
+            cmu_29dof, dancedb_29dof, dfaust_29dof, ekut_29dof, 
+            eyes_japan_29dof, hdm05_29dof, human4d_29dof, humaneva_29dof, 
+            kit_29dof, mosh_29dof, moyo_29dof, poseprior_29dof, 
+            sfu_29dof, soma_29dof, ssm_29dof, tcdhands_29dof, 
+            totalcapture_29dof, transitions_29dof, lafan1]
   occlusion: "amass_copycat_occlusion_v3.pkl"
   mode: train
   eval_id: null
-  
+
 observation:
   robot:
     root_quat_w:
