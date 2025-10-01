@@ -178,7 +178,6 @@ scripts/*.pt
 scripts/*.onnx
 scripts/*.json
 scripts/*.txt
-scripts/data
 scripts/eval
 scripts/*.yaml
 scripts/file/
@@ -192,6 +191,8 @@ scripts/videos
 checkpoint*.pt
 test/
 *.csv
+
+scripts/data/g1
 
 #meshes
 active_adaptation/assets_mjcf/

@@ -72,8 +72,8 @@ observation:
 
 reward:
   loco:
-    tracking_root_trans:    {weight: 1., enabled: true}
-    tracking_root_rot:      {weight: 1., enabled: true}
+    tracking_anchor_pos:    {weight: 1., enabled: true}
+    tracking_anchor_quat:   {weight: 1., enabled: true}
     tracking_qpos:          {weight: 1., enabled: true}
     tracking_kp_pos:        {weight: 2., enabled: true}
     tracking_kp_quat:       {weight: 2, enabled: true}

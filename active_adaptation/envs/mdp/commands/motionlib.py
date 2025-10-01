@@ -39,7 +39,7 @@ class MotionLib(Command):
             motion_clip_dir: str,
             dataset: str,
             occlusion: str,
-            root_body: str = "pelvis",
+            anchor_body: str = None,
             keypoint_body: List[str] = None,
             mode: str = "train",
             eval_id: int = None,
@@ -63,7 +63,7 @@ class MotionLib(Command):
             data = {data_keys[eval_id]: data[data_keys[eval_id]]}
         
         self.env_origin = self.env.scene.env_origins
-        self.root_body_index = self.robot.body_names.index(root_body)
+        self.anchor_body_index = self.robot.body_names.index(anchor_body)
         self.keypoint_body_index = [self.robot.body_names.index(body) for body in keypoint_body]
 
         self.load_data(data)
@@ -199,10 +199,10 @@ class MotionLib(Command):
         self.body_lin_vel_w = torch.cat(self.body_lin_vel_w, dim=0).float()
         self.body_ang_vel_w = torch.cat(self.body_ang_vel_w, dim=0).float()
 
-        self.root_pos_w = self.body_pos_w[:, self.root_body_index]
-        self.root_quat_w = self.body_quat_w[:, self.root_body_index]
-        self.root_lin_vel_w = self.body_lin_vel_w[:, self.root_body_index]
-        self.root_ang_vel_w = self.body_ang_vel_w[:, self.root_body_index]
+        self.root_pos_w = self.body_pos_w[:, 0]
+        self.root_quat_w = self.body_quat_w[:, 0]
+        self.root_lin_vel_w = self.body_lin_vel_w[:, 0]
+        self.root_ang_vel_w = self.body_ang_vel_w[:, 0]
 
         self.num_motions = len(data)
         self.num_frames = self.joint_pos.shape[0]
@@ -259,7 +259,7 @@ class MotionLibG1(MotionLib):
             motion_clip_dir: str,
             dataset: str,
             occlusion: str,
-            root_body: str = "pelvis",
+            anchor_body: str = "torso_link",
             keypoint_body: List[str] = [
                                         "pelvis",
                                         "left_hip_pitch_link", "right_hip_pitch_link", 
@@ -278,7 +278,7 @@ class MotionLibG1(MotionLib):
             motion_clip_dir,
             dataset,
             occlusion,
-            root_body,
+            anchor_body,
             keypoint_body,
             mode,
             eval_id,

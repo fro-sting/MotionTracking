@@ -26,8 +26,8 @@ import active_adaptation.envs.mdp as mdp
 
 ADAPTIVE_SIGMA = {
     "sigma": {
-        "tracking_root_trans": 0.16,
-        "tracking_root_rot": 0.16,
+        "tracking_anchor_pos": 0.16,
+        "tracking_anchor_quat": 0.16,
         "tracking_qpos": 0.16,
         "tracking_kp_pos": 0.36,
         "tracking_kp_quat": 0.36,
@@ -127,7 +127,7 @@ class Humanoid(SimpleEnv):
                 ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)
                 ref_kp_pos.add_(self.env.scene.env_origins[:, None])
 
-                ref_kp_pos = ref_kp_pos[:, self.keypoint_body_index, :]
+                ref_kp_pos = ref_kp_pos[:, self.keypoint_body_index]
                 body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
 
                 for i in range(ref_kp_pos.shape[1]):
@@ -166,34 +166,37 @@ class Humanoid(SimpleEnv):
         self._adaptive_sigma[term] = min(self._adaptive_sigma[term], self._error_ema[term])
     
     # Motion Tracking Reward
-    class tracking_root_trans(mdp.Reward):
+    class tracking_anchor_pos(mdp.Reward):
         def __init__(self, env, weight: float, enabled: bool = True):
             super().__init__(env, weight, enabled)
             self.robot: Articulation = self.env.scene["robot"]
+            self.anchor_body_index = self.env.command_manager.anchor_body_index
 
         def compute(self) -> torch.Tensor:
             timestep = (self.env.episode_length_buf-1).cpu()
-            ref_root_translation = self.env.command_manager.root_pos_w[timestep].to(self.device) + self.env.scene.env_origins
-            root_pos_w = self.robot.data.root_pos_w
-            error = (root_pos_w - ref_root_translation).square().sum(-1, True)
+            ref_anchor_pos_w = self.env.command_manager.body_pos_w[timestep][:, self.anchor_body_index].to(self.device)
+            ref_anchor_pos_w.add_(self.env.scene.env_origins)
+            anchor_pos_w = self.robot.data.body_pos_w[:, self.anchor_body_index]
+            error = (anchor_pos_w - ref_anchor_pos_w).square().sum(-1, True)
             # reward = torch.exp(- error / self.sigma)
-            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_root_trans"])
-            self.env._update_adaptive_sigma(error.mean(), "tracking_root_trans")
+            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_anchor_pos"])
+            self.env._update_adaptive_sigma(error.mean(), "tracking_anchor_pos")
             return reward
         
-    class tracking_root_rot(mdp.Reward):
+    class tracking_anchor_quat(mdp.Reward):
         def __init__(self, env, weight: float, enabled: bool = True):
             super().__init__(env, weight, enabled)
             self.robot: Articulation = self.env.scene["robot"]
+            self.anchor_body_index = self.env.command_manager.anchor_body_index
 
         def compute(self) -> torch.Tensor:
             timestep = (self.env.episode_length_buf-1).cpu()
-            ref_root_orientation = self.env.command_manager.root_quat_w[timestep].to(self.device)
-            root_quat_w = self.robot.data.root_quat_w
-            error = (quat_error_magnitude(root_quat_w, ref_root_orientation) ** 2).unsqueeze(-1)
+            ref_anchor_quat_w = self.env.command_manager.body_quat_w[timestep][:, self.anchor_body_index].to(self.device)
+            anchor_quat_w = self.robot.data.body_quat_w[:, self.anchor_body_index]
+            error = (quat_error_magnitude(anchor_quat_w, ref_anchor_quat_w) ** 2).unsqueeze(-1)
             # reward = torch.exp(- error / self.sigma)
-            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_root_rot"])
-            self.env._update_adaptive_sigma(error.mean(), "tracking_root_rot")
+            reward = torch.exp(- error / self.env._adaptive_sigma["tracking_anchor_quat"])
+            self.env._update_adaptive_sigma(error.mean(), "tracking_anchor_quat")
             return reward
         
     class tracking_qpos(mdp.Reward):
