@@ -60,10 +60,23 @@
    pip install -e . 
    ```
 
-## Data Preparation
+# Data Preparation
 1. Create folder `scripts/data/g1` and put the `.pkl` file [retargeted by PHC](https://github.com/xiaohu-art/phc-retarget) in this folder.
-2. Run `python data_process/load_pkl.py --input_file <motions>.pkl --input_fps 30 --output_fps 50 --headless` to interpolate the motion to 50 FPS and convert the data to isaacsim format.
-3. For [LAFAN1 dataset](https://huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset)
+2. Run 
+    ```bash
+    python process/load_pkl.py --input_file <motions>.pkl --input_fps 30 --output_fps 50 --headless
+    ```
+    to interpolate the motion to 50 FPS and convert the data to isaacsim format.
+3. For [LAFAN1 dataset](https://huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset), run
+
+    ```bash
+    hf download lvhaidong/LAFAN1_Retargeting_Dataset --repo-type dataset --local-dir <path/to/lafan1_data>
+    ```
+    and then run
+
+    ```bash
+    python process/csv_to_pkl.py --input_dir <path/to/lafan1_data> --input_fps 30 --output_file <motions>.pkl --output_fps 50
+    ```
 
 ## Basic Usage
 

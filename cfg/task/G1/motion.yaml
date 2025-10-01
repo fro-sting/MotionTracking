@@ -34,7 +34,7 @@ action:
 command:
   _target_: active_adaptation.envs.mdp.MotionLibG1
   motion_clip_dir: "scripts/data/g1"
-  dataset: [accad_29dof, sft_29dof]
+  dataset: [lafan]
   occlusion: "amass_copycat_occlusion_v3.pkl"
   mode: train
   eval_id: null
