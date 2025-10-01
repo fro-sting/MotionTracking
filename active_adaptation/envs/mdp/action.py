@@ -14,7 +14,6 @@ from active_adaptation.utils.math import (
     yaw_quat,
 )
 import active_adaptation.utils.symmetry as symmetry_utils
-from active_adaptation.assets.humanoid import G1_ACTION_SCALE
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

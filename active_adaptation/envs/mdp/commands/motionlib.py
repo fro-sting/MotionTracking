@@ -37,7 +37,7 @@ class MotionLib(Command):
             self, 
             env,
             motion_clip_dir: str,
-            dataset: str,
+            dataset: List[str],
             occlusion: str,
             anchor_body: str = None,
             keypoint_body: List[str] = None,
@@ -52,11 +52,21 @@ class MotionLib(Command):
         occlusion_path = os.path.join(package_dir, "..", motion_clip_dir, "..", occlusion)
         occlusion_keys = list(joblib.load(occlusion_path).keys())
 
-        motion_clip = os.path.join(package_dir, "..", motion_clip_dir, dataset) + ".pkl"
-
-        data = joblib.load(motion_clip)
-        data = {k.replace("_stageii", "_poses"): v for k, v in data.items()}
-        data = {k: v for k, v in data.items() if k not in occlusion_keys}
+        # Support both single string (backward compatibility) and list of strings
+        if isinstance(dataset, str):
+            dataset = [dataset]
+        
+        # Load and merge all datasets
+        data = {}
+        for dataset_name in dataset:
+            motion_clip = os.path.join(package_dir, "..", motion_clip_dir, dataset_name) + ".pkl"
+            dataset_data = joblib.load(motion_clip)
+            dataset_data = {k.replace("_stageii", "_poses"): v for k, v in dataset_data.items()}
+            dataset_data = {k: v for k, v in dataset_data.items() if k not in occlusion_keys}
+            
+            data.update(dataset_data)
+        
+        print(f"Loaded motion clips from {len(dataset)} dataset(s)")
 
         if eval_id is not None:
             data_keys = list(data.keys())
@@ -257,7 +267,7 @@ class MotionLibG1(MotionLib):
             self, 
             env,
             motion_clip_dir: str,
-            dataset: str,
+            dataset: List[str],
             occlusion: str,
             anchor_body: str = "torso_link",
             keypoint_body: List[str] = [

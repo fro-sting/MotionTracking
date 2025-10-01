@@ -62,7 +62,7 @@
 
 ## Data Preparation
 1. Create folder `scripts/data/g1` and put the `.pkl` file [retargeted by PHC](https://github.com/xiaohu-art/phc-retarget) in this folder.
-2. Run `python data_process/load_pkl.py --input_file motions.pkl --input_fps 30 --output_fps 50 --headless` to interpolate the motion to 50 FPS and convert the data to isaacsim format.
+2. Run `python data_process/load_pkl.py --input_file <motions>.pkl --input_fps 30 --output_fps 50 --headless` to interpolate the motion to 50 FPS and convert the data to isaacsim format.
 3. For [LAFAN1 dataset](https://huggingface.co/datasets/lvhaidong/LAFAN1_Retargeting_Dataset)
 
 ## Basic Usage
@@ -105,7 +105,7 @@ action:
 command:
   _target_: active_adaptation.envs.mdp.MotionLibG1
   motion_clip_dir: "scripts/data/g1"
-  dataset: amass_train
+  dataset: [pklfile1, pklfile2, ...]
   occlusion: "amass_copycat_occlusion_v3.pkl"
   mode: train
   eval_id: null
