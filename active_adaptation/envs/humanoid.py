@@ -303,21 +303,22 @@ class Humanoid(SimpleEnv):
             return deviation > self.max_distance
         
     class root_rot_deviation(mdp.Termination):
-        def __init__(self, env, max_theta: float):
+        def __init__(self, env, threshold: float):
             super().__init__(env)
             self.device = self.env.device
-            self.max_theta = torch.tensor(max_theta * 3.14 / 180, device=self.env.device)
+            self.threshold = threshold
             self.robot: Articulation = self.env.scene["robot"]
 
         def compute(self, termination: torch.Tensor) -> torch.Tensor:
             timestep = (self.env.episode_length_buf - 1).cpu()
-            ref_root_orientation = self.env.command_manager.root_quat_w[timestep].to(self.device)
-
+            ref_quat_w = self.env.command_manager.root_quat_w[timestep].to(self.device)
             root_quat_w = self.robot.data.root_quat_w
-            dot_product = dot(root_quat_w, ref_root_orientation)
-            deviation = 2 * torch.acos(dot_product.abs().clamp(min=-1.0, max=1.0))
 
-            return deviation > self.max_theta
+            ref_projected_gravity_b = quat_rotate_inverse(ref_quat_w, self.robot.data.GRAVITY_VEC_W)
+            projected_gravity_b = quat_rotate_inverse(root_quat_w, self.robot.data.GRAVITY_VEC_W)
+
+            diff = (projected_gravity_b[:, 2] - ref_projected_gravity_b[:, 2]).abs().unsqueeze(-1)
+            return diff > self.threshold
         
     class track_kp_error(mdp.Termination):
         def __init__(self, env, threshold: float, body_names: str = ".*"):
