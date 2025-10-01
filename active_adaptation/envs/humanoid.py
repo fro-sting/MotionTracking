@@ -320,10 +320,10 @@ class Humanoid(SimpleEnv):
             return deviation > self.max_theta
         
     class track_kp_error(mdp.Termination):
-        def __init__(self, env, max_distance: float, body_names: str = ".*"):
+        def __init__(self, env, threshold: float, body_names: str = ".*"):
             super().__init__(env)
             self.device = self.env.device
-            self.max_distance = torch.tensor(max_distance, device=self.env.device)
+            self.threshold = threshold
             self.robot: Articulation = self.env.scene["robot"]
             self.body_indices = [self.robot.body_names.index(name) for name in body_names]
 
@@ -335,8 +335,7 @@ class Humanoid(SimpleEnv):
             body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
 
             diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
-            mean_diff = diff.mean(-1, True)     # (num_envs, 1)
-            return mean_diff > self.max_distance
+            return (diff > self.threshold).any(dim=-1, keepdim=True)
 
 def dot(a: torch.Tensor, b: torch.Tensor):
     return (a * b).sum(-1, True)

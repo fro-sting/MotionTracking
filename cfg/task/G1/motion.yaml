@@ -113,6 +113,6 @@ termination:
   # dummy: {}
   root_deviation: {max_distance: 0.4}
   root_rot_deviation: {max_theta: 30}
-  track_kp_error: {max_distance: 0.5, 
+  track_kp_error: {threshold: 0.5, 
                   body_names: [ left_wrist_yaw_link, right_wrist_yaw_link,
                                 left_ankle_roll_link, right_ankle_roll_link]}

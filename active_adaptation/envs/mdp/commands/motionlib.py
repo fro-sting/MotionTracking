@@ -252,8 +252,6 @@ def contact_from_positions(kp_global, left_foot_idx, right_foot_idx, v_thresh=0.
     return feet_still
 
 class MotionLibG1(MotionLib):
-    source_fps: int = 30
-    target_fps: int = 50
     
     def __init__(
             self, 
