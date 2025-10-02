@@ -96,6 +96,8 @@ class Humanoid(SimpleEnv):
 
         def compute(self) -> torch.Tensor:
             timestep = self.env.episode_length_buf.cpu()
+            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = torch.clamp(timestep, max=max_timestep)
             ref_qpos = self.env.command_manager.joint_pos[timestep].to(self.device)
             ref_qpos = ref_qpos[:, self.joint_indices]
             return ref_qpos.reshape(self.num_envs, -1)
@@ -111,6 +113,8 @@ class Humanoid(SimpleEnv):
 
         def compute(self):
             timestep = self.env.episode_length_buf.cpu()
+            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = torch.clamp(timestep, max=max_timestep)
             ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)       # (num_envs, num_keypoints, 3)
             ref_kp_pos.add_(self.env.scene.env_origins[:, None])
             ref_kp_quat = self.ref_kp_quat[timestep].to(self.device)
@@ -145,6 +149,8 @@ class Humanoid(SimpleEnv):
 
         def compute(self):
             timestep = self.env.episode_length_buf.cpu()
+            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = torch.clamp(timestep, max=max_timestep)
             ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)       # (num_envs, num_keypoints, 3)
             ref_kp_pos.add_(self.env.scene.env_origins[:, None])
             ref_kp_quat = self.ref_kp_quat[timestep].to(self.device)

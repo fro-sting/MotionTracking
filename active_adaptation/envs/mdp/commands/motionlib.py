@@ -131,9 +131,12 @@ class MotionLib(Command):
         motion_length = self.motion_length[motion_ids]
 
         if self.mode == "train":
-            r = torch.rand(motion_length.shape) * 0.5
-            offsets = (r * motion_length.float()).floor().long()
-            start_frames += offsets
+            bin_size = 100
+            max_bins = ((motion_length - 1) // bin_size).clamp_min(0)
+
+            r = torch.rand_like(max_bins, dtype=torch.float32)
+            bin_ids = torch.floor(r * (max_bins.to(torch.float32) + 1.0)).to(torch.long)
+            start_frames += bin_ids * bin_size
 
         init_root_state = self.init_root_state[env_ids]     # (num_envs, 3 + 4 + 6) root position, root orientation, root linear velocity and root angular velocity
         init_root_state[:, :3] = self.root_pos_w[start_frames].to(self.device) + self.env_origin[env_ids]
