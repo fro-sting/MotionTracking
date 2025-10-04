@@ -131,7 +131,6 @@ class Humanoid(SimpleEnv):
                 ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)
                 ref_kp_pos.add_(self.env.scene.env_origins[:, None])
 
-                ref_kp_pos = ref_kp_pos[:, self.keypoint_body_index]
                 body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
 
                 for i in range(ref_kp_pos.shape[1]):

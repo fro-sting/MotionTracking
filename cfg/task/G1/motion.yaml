@@ -5,7 +5,7 @@ name: motion
 viewer:
   resolution: [1280, 720]
   lookat: [0., 0., 0.]
-  eye: [3.0, 3.0, 3.0]
+  eye: [2.0, 2.0, 1.0]
 
 robot: 
   name: g1_29dof
