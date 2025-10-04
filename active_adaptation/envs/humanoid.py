@@ -287,6 +287,20 @@ class Humanoid(SimpleEnv):
             self.env._update_adaptive_sigma(error.mean(), "tracking_kp_ang_vel")
             return reward
 
+    class mean_kp_error(mdp.Reward):
+        def __init__(self, env, weight: float, enabled: bool = True):
+            super().__init__(env, weight, enabled)
+            self.robot: Articulation = self.env.scene["robot"]
+            self.keypoint_body_index = self.env.command_manager.keypoint_body_index
+            
+        def compute(self) -> torch.Tensor:
+            timestep = (self.env.episode_length_buf-1).cpu()
+            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.keypoint_body_index].to(self.device)
+            ref_keypoints.add_(self.env.scene.env_origins[:, None])
+            body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
+            error = (ref_keypoints - body_pos_global).norm(dim=-1)
+            return error.mean(-1, True)
+
     # Early Termination Conditions
     class dummy(mdp.Termination):
         def __init__(self, env):
@@ -344,9 +358,10 @@ class Humanoid(SimpleEnv):
 
             body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
 
-            diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
-            # return (diff > self.threshold).any(dim=-1, keepdim=True)
-            return diff.mean(-1, True) > self.threshold
+            # diff = (ref_keypoints - body_pos_global).norm(dim=-1)    # (num_envs, num_bodies)
+            # return diff.mean(-1, True) > self.threshold
+            diff = (ref_keypoints[:, :, 2] - body_pos_global[:, :, 2]).abs()
+            return (diff > self.threshold).any(dim=-1, keepdim=True)
 
 def dot(a: torch.Tensor, b: torch.Tensor):
     return (a * b).sum(-1, True)

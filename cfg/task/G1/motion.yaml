@@ -89,6 +89,8 @@ reward:
 
     action_rate_l2:     {weight: 0.2, enabled: true}
 
+    mean_kp_error:      {weight: 1.0, enabled: false}
+
 randomization:
   push:
     body_names: ["torso_link", "pelvis"]
@@ -118,6 +120,6 @@ termination:
   # dummy: {}
   root_deviation: {max_distance: 0.4}
   root_rot_deviation: {threshold: 0.8}
-  track_kp_error: {threshold: 0.5, 
+  track_kp_error: {threshold: 0.4, 
                   body_names: [ left_wrist_yaw_link, right_wrist_yaw_link,
                                 left_ankle_roll_link, right_ankle_roll_link]}

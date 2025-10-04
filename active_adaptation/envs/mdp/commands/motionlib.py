@@ -81,7 +81,8 @@ class MotionLib(Command):
         assert len(self.robot.joint_names) == self.joint_pos.shape[1]
         print(f"Loaded {len(data)} motion clips with {self.num_frames} frames.")
 
-        self.min_weight = 3e-3
+        BASELINE_MASS = 0.02
+        self.min_weight = BASELINE_MASS / self.num_motions
         self.alpha0, self.beta0 = 1.0, 1.0
         self.trials = torch.zeros(self.num_motions)
         self.failures = torch.zeros(self.num_motions)
@@ -133,9 +134,9 @@ class MotionLib(Command):
         if self.mode == "train":
             bin_size = 100
             max_bins = ((motion_length - 1) // bin_size).clamp_min(0)
-
+            cap = torch.div(max_bins, 3, rounding_mode='floor')  # floor(max_bins/3)
             r = torch.rand_like(max_bins, dtype=torch.float32)
-            bin_ids = torch.floor(r * (max_bins.to(torch.float32) + 1.0)).to(torch.long)
+            bin_ids = torch.floor(r * (cap.to(torch.float32) + 1.0)).to(torch.long)
             start_frames += bin_ids * bin_size
 
         init_root_state = self.init_root_state[env_ids]     # (num_envs, 3 + 4 + 6) root position, root orientation, root linear velocity and root angular velocity
