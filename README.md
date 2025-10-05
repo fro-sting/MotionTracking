@@ -234,6 +234,9 @@ python play_mujoco.py task=...
 python play.py task=... export_policy=true
 # record video
 python eval.py task=... task.command.eval_id=0 eval_render=true headless=false
+# evaluation for success rate and mean per keypoint error
+# currently 89.24% success rate and 32.12 mean per keypoint error on 23 datasets
+python eval.py task=... task.command.eval_id=[0, num_envs] # modify in eval.yaml
 ```
 
 ## Development Guide

@@ -38,7 +38,11 @@ defaults:
   - _self_
 
 task:
-  num_envs: 2048
+  # num_envs: 11817
+  # command:
+  #   mode: eval
+  #   eval_id: [0, 11817]
+  num_envs: 2
   command:
     mode: eval
     eval_id: 0

@@ -3,7 +3,7 @@ from math import pi
 import torch
 import torch.distributions as D
 import torch.nn.functional as F
-from typing import Sequence, List, TYPE_CHECKING
+from typing import Sequence, List, TYPE_CHECKING, Union, Optional, Tuple
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -37,18 +37,21 @@ class MotionLib(Command):
             self, 
             env,
             motion_clip_dir: str,
-            dataset: List[str],
+            dataset: Union[List[str], str],
             occlusion: str,
-            anchor_body: str = None,
-            keypoint_body: List[str] = None,
+            anchor_body: Optional[str] = None,
+            keypoint_body: Optional[List[str]] = None,
             mode: str = "train",
-            eval_id: int = None,
+            eval_id: Optional[Union[int, tuple[int, int]]] = None,
             teleop: bool = False,
         ):
         super().__init__(env, teleop=teleop)
         self.robot: Articulation = env.scene["robot"]
-        package_dir = os.path.dirname(package_path)
+        self.env_origin = self.env.scene.env_origins
+        self.anchor_body_index = self.robot.body_names.index(anchor_body)
+        self.keypoint_body_index = [self.robot.body_names.index(body) for body in keypoint_body]
 
+        package_dir = os.path.dirname(package_path)
         occlusion_path = os.path.join(package_dir, "..", motion_clip_dir, "..", occlusion)
         occlusion_keys = list(joblib.load(occlusion_path).keys())
 
@@ -68,17 +71,41 @@ class MotionLib(Command):
         
         print(f"Loaded motion clips from {len(dataset)} dataset(s)")
 
+        self._per_env_fixed = False
+        self._motion_for_env: Optional[torch.Tensor] = None
+
         if eval_id is not None:
             data_keys = list(data.keys())
-            data = {data_keys[eval_id]: data[data_keys[eval_id]]}
-        
-        self.env_origin = self.env.scene.env_origins
-        self.anchor_body_index = self.robot.body_names.index(anchor_body)
-        self.keypoint_body_index = [self.robot.body_names.index(body) for body in keypoint_body]
+            if isinstance(eval_id, int):
+                # Single motion by index
+                idx = int(eval_id)
+                assert 0 <= idx < len(data_keys), (
+                f"eval_id {idx} out of range for {len(data_keys)} motions"
+                )
+                data = {data_keys[idx]: data[data_keys[idx]]}
+            else:
+                start, end = eval_id
+                assert 0 <= start < end <= len(data_keys), (
+                f"Invalid eval_id slice {eval_id}; total motions: {len(data_keys)}"
+                )
+                keep_keys = data_keys[start:end]
+                num_eval_motion = end - start
+                assert self.num_envs == num_eval_motion, (
+                f"num_envs ({self.num_envs}) must equal slice length ({num_eval_motion})"
+                )
+                data = {k: data[k] for k in keep_keys}
+                # per-env fixed mapping: env i -> motion i
+                self._per_env_fixed = True
+                self._motion_for_env = torch.arange(num_eval_motion, device=self.device)
 
         self.load_data(data)
         assert len(self.robot.body_names) == self.body_pos_w.shape[1]
         assert len(self.robot.joint_names) == self.joint_pos.shape[1]
+
+        if self._per_env_fixed:
+            self.num_frames = int(self.motion_length.max())
+        else:
+            self.num_frames = int(self.joint_pos.shape[0])
         print(f"Loaded {len(data)} motion clips with {self.num_frames} frames.")
 
         BASELINE_MASS = 0.02
@@ -117,28 +144,44 @@ class MotionLib(Command):
 
         w = p_fail.clamp_min(self.min_weight)
         return w / w.sum()
+
+    def _pick_motion_ids(self, env_ids: torch.Tensor) -> torch.Tensor:
+        """Return a (len(env_ids),) tensor of motion ids for these envs, honoring mode & slicing."""
+        # Deterministic mapping: env i -> motion i
+        if self._per_env_fixed:
+            assert self._motion_for_env is not None
+            return self._motion_for_env[env_ids]
+
+        # In eval/play without slicing, use CURRENT_MOTION for all selected envs
+        if self.mode in ("play", "eval"):
+            motion_id = int(CURRENT_MOTION % max(self.num_motions, 1))
+            return torch.full((env_ids.shape[0],), motion_id, dtype=torch.long, device=self.device)
+
+        # Default: train — weighted by failure-biased bandit
+        probs = self._sampling_probs().to(self.device)
+        return D.Categorical(probs).sample((env_ids.shape[0],))
     
-    def sample_init(self, env_ids: torch.Tensor) -> torch.Tensor:
-        if self.mode in ["play", "eval"]:
-            motion_ids = torch.ones(env_ids.shape[0], dtype=torch.long) * CURRENT_MOTION
-        else:
-            probs = self._sampling_probs()
-            motion_ids = D.Categorical(probs).sample((env_ids.shape[0],))
+    def _choose_start_frames(self, motion_ids: torch.Tensor) -> torch.Tensor:
+        start_frames = self.start_frames[motion_ids.cpu()]
 
-        self.curr_motion_id[env_ids] = motion_ids.to(self.device)
-        
-        start_frames = self.start_frames[motion_ids]
-        end_frames = self.end_frames[motion_ids]
-        motion_length = self.motion_length[motion_ids]
-
-        if self.mode == "train":
+        # Bias towards earlier bins to diversify starting phases
+        if self.mode == "train" and not self._per_env_fixed:
+            motion_length = self.motion_length[motion_ids.cpu()]
             bin_size = 100
             max_bins = ((motion_length - 1) // bin_size).clamp_min(0)
-            cap = torch.div(max_bins, 3, rounding_mode='floor')  # floor(max_bins/3)
+            cap = torch.div(max_bins, 3, rounding_mode='floor') # floor(max_bins/3)
             r = torch.rand_like(max_bins, dtype=torch.float32)
             bin_ids = torch.floor(r * (cap.to(torch.float32) + 1.0)).to(torch.long)
             start_frames += bin_ids * bin_size
-
+        return start_frames
+    
+    def sample_init(self, env_ids: torch.Tensor) -> torch.Tensor:
+        motion_ids = self._pick_motion_ids(env_ids)
+        self.curr_motion_id[env_ids] = motion_ids.to(self.device)
+        
+        start_frames = self._choose_start_frames(motion_ids.cpu())
+        end_frames = self.end_frames[motion_ids.cpu()]
+        
         init_root_state = self.init_root_state[env_ids]     # (num_envs, 3 + 4 + 6) root position, root orientation, root linear velocity and root angular velocity
         init_root_state[:, :3] = self.root_pos_w[start_frames].to(self.device) + self.env_origin[env_ids]
         init_root_state[:, :3] += torch.tensor([0, 0, 0.01], device=self.device)
@@ -242,29 +285,6 @@ class MotionLib(Command):
     #     )
     #     return
 
-def contact_from_positions(kp_global, left_foot_idx, right_foot_idx, v_thresh=0.01, h_thresh=0.01):
-    r'''
-    Args:
-        kp_global: (N, 24, 3)  torch tensor in global coordinate system
-        left_foot_idx: int
-        right_foot_idx: int
-        v_thresh: float
-        h_thresh: float
-    '''
-    feet_l = kp_global[:, left_foot_idx, :]
-    feet_l_vel = (torch.diff(feet_l, dim=0) ** 2).sum(dim=-1)
-    feet_l_still = feet_l_vel < v_thresh
-
-    feet_r = kp_global[:, right_foot_idx, :]
-    feet_r_vel = (torch.diff(feet_r, dim=0) ** 2).sum(dim=-1)
-    feet_r_still = feet_r_vel < v_thresh
-
-    feet_l_still = feet_l_still.unsqueeze(-1)
-    feet_r_still = feet_r_still.unsqueeze(-1)
-    feet_still = torch.cat([feet_l_still, feet_r_still], dim=-1)    # (N-1, 2）
-    feet_still = torch.cat([feet_still[:1], feet_still], dim=0)     # (N, 2)
-    return feet_still
-
 class MotionLibG1(MotionLib):
     
     def __init__(
@@ -284,7 +304,7 @@ class MotionLibG1(MotionLib):
                                         "left_wrist_yaw_link", "right_wrist_yaw_link"
                                         ],
             mode: str = "train",
-            eval_id: int = None,
+            eval_id: Optional[Union[int, List[int]]] = None,
             teleop: bool = False,
         ):
         super().__init__(
