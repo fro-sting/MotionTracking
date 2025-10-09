@@ -51,13 +51,6 @@ observation:
     projected_gravity_b:  {noise_std: 0.01}
     joint_pos:            {noise_std: 0.05}
     joint_vel:            {noise_std: 0.2}
-    body_pos:             {body_names: [left_hip_pitch_link, right_hip_pitch_link, 
-                                        left_knee_link, right_knee_link, 
-                                        left_ankle_roll_link, right_ankle_roll_link, 
-                                        left_shoulder_roll_link, right_shoulder_roll_link, 
-                                        left_elbow_link, right_elbow_link, 
-                                        left_wrist_yaw_link, right_wrist_yaw_link], 
-                                        yaw_only: false}
     prev_actions:         {steps: 1}
   ref_motion_:
     ref_qpos:             {}
@@ -73,7 +66,6 @@ observation:
                                     left_elbow_link, right_elbow_link, 
                                     left_wrist_yaw_link, right_wrist_yaw_link], 
                                     yaw_only: false}
-    # joint_forces:     {}
 
 reward:
   loco:
@@ -81,7 +73,7 @@ reward:
     tracking_anchor_quat:   {weight: 1., enabled: true}
     tracking_qpos:          {weight: 1., enabled: true}
     tracking_kp_pos:        {weight: 2., enabled: true}
-    tracking_kp_quat:       {weight: 2, enabled: true}
+    tracking_kp_quat:       {weight: 2., enabled: true}
     tracking_kp_lin_vel:    {weight: 2., enabled: true}
     tracking_kp_ang_vel:    {weight: 2., enabled: true}
 

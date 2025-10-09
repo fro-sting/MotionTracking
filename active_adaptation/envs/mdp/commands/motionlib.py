@@ -111,8 +111,8 @@ class MotionLib(Command):
         BASELINE_MASS = 0.02
         self.min_weight = BASELINE_MASS / self.num_motions
         self.alpha0, self.beta0 = 1.0, 1.0
-        self.trials = torch.zeros(self.num_motions)
-        self.failures = torch.zeros(self.num_motions)
+        self.trials = torch.zeros(self.num_motions, device=self.device)
+        self.failures = torch.zeros(self.num_motions, device=self.device)
         self.curr_motion_id = torch.full((self.num_envs,), -1, device=self.device, dtype=torch.long)
 
         self.mode = mode
@@ -162,11 +162,11 @@ class MotionLib(Command):
         return D.Categorical(probs).sample((env_ids.shape[0],))
     
     def _choose_start_frames(self, motion_ids: torch.Tensor) -> torch.Tensor:
-        start_frames = self.start_frames[motion_ids.cpu()]
+        start_frames = self.start_frames[motion_ids]
 
         # Bias towards earlier bins to diversify starting phases
         if self.mode == "train" and not self._per_env_fixed:
-            motion_length = self.motion_length[motion_ids.cpu()]
+            motion_length = self.motion_length[motion_ids]
             bin_size = 100
             max_bins = ((motion_length - 1) // bin_size).clamp_min(0)
             cap = torch.div(max_bins, 3, rounding_mode='floor') # floor(max_bins/3)
@@ -177,10 +177,10 @@ class MotionLib(Command):
     
     def sample_init(self, env_ids: torch.Tensor) -> torch.Tensor:
         motion_ids = self._pick_motion_ids(env_ids)
-        self.curr_motion_id[env_ids] = motion_ids.to(self.device)
+        self.curr_motion_id[env_ids] = motion_ids
         
-        start_frames = self._choose_start_frames(motion_ids.cpu())
-        end_frames = self.end_frames[motion_ids.cpu()]
+        start_frames = self._choose_start_frames(motion_ids)
+        end_frames = self.end_frames[motion_ids]
         
         init_root_state = self.init_root_state[env_ids]     # (num_envs, 3 + 4 + 6) root position, root orientation, root linear velocity and root angular velocity
         init_root_state[:, :3] = self.root_pos_w[start_frames].to(self.device) + self.env_origin[env_ids]
@@ -202,17 +202,17 @@ class MotionLib(Command):
             env_ids=env_ids
         )
         
-        return start_frames.to(self.device), end_frames.to(self.device)
+        return start_frames, end_frames
     
     def reset(self, env_ids: torch.Tensor):
         pass
 
     def _update_stats(self, env_ids: torch.Tensor):
-        mids = self.curr_motion_id[env_ids].cpu()
+        mids = self.curr_motion_id[env_ids]
         valid = mids >= 0
         if valid.any():
             success = (self.env.stats["success"][env_ids].squeeze(-1) > 0.5)
-            failed = (~success).to(self.trials.dtype).cpu()
+            failed = (~success).to(self.trials.dtype)
 
             ones = torch.ones_like(failed, dtype=self.trials.dtype)
 
@@ -249,12 +249,12 @@ class MotionLib(Command):
             self.body_ang_vel_w.append(body_ang_vel_w)
 
         self.motion_length = torch.tensor(self.motion_length)
-        self.joint_pos = torch.cat(self.joint_pos, dim=0).float()
-        self.joint_vel = torch.cat(self.joint_vel, dim=0).float()
-        self.body_pos_w = torch.cat(self.body_pos_w, dim=0).float()
-        self.body_quat_w = torch.cat(self.body_quat_w, dim=0).float()
-        self.body_lin_vel_w = torch.cat(self.body_lin_vel_w, dim=0).float()
-        self.body_ang_vel_w = torch.cat(self.body_ang_vel_w, dim=0).float()
+        self.joint_pos = torch.cat(self.joint_pos, dim=0).float().to(self.device)
+        self.joint_vel = torch.cat(self.joint_vel, dim=0).float().to(self.device)
+        self.body_pos_w = torch.cat(self.body_pos_w, dim=0).float().to(self.device)
+        self.body_quat_w = torch.cat(self.body_quat_w, dim=0).float().to(self.device)
+        self.body_lin_vel_w = torch.cat(self.body_lin_vel_w, dim=0).float().to(self.device)
+        self.body_ang_vel_w = torch.cat(self.body_ang_vel_w, dim=0).float().to(self.device)
 
         self.root_pos_w = self.body_pos_w[:, 0]
         self.root_quat_w = self.body_quat_w[:, 0]
@@ -264,8 +264,9 @@ class MotionLib(Command):
         self.num_motions = len(data)
         self.num_frames = self.joint_pos.shape[0]
 
-        self.start_frames = torch.cat([torch.zeros(1), self.motion_length.cumsum(dim=0)[:-1]]).long()
-        self.end_frames = self.motion_length.cumsum(dim=0).long()
+        self.start_frames = torch.cat([torch.zeros(1), self.motion_length.cumsum(dim=0)[:-1]]).long().to(self.device)
+        self.end_frames = self.motion_length.cumsum(dim=0).long().to(self.device)
+        self.motion_length = self.motion_length.to(self.device)
 
     # # for sanity check
     # def update(self):

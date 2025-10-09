@@ -95,10 +95,10 @@ class Humanoid(SimpleEnv):
             self.joint_indices, self.joint_names = self.robot.find_joints(joint_names, preserve_order=True)
 
         def compute(self) -> torch.Tensor:
-            timestep = self.env.episode_length_buf.cpu()
-            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = self.env.episode_length_buf
+            max_timestep = self.env.max_episode_length - 1
             timestep = torch.clamp(timestep, max=max_timestep)
-            ref_qpos = self.env.command_manager.joint_pos[timestep].to(self.device)
+            ref_qpos = self.env.command_manager.joint_pos[timestep]
             ref_qpos = ref_qpos[:, self.joint_indices]
             return ref_qpos.reshape(self.num_envs, -1)
         
@@ -112,12 +112,12 @@ class Humanoid(SimpleEnv):
             self.ref_kp_quat = self.env.command_manager.body_quat_w[:, self.keypoint_body_index]
 
         def compute(self):
-            timestep = self.env.episode_length_buf.cpu()
-            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = self.env.episode_length_buf
+            max_timestep = self.env.max_episode_length - 1
             timestep = torch.clamp(timestep, max=max_timestep)
-            ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)       # (num_envs, num_keypoints, 3)
+            ref_kp_pos = self.ref_kp_pos[timestep]       # (num_envs, num_keypoints, 3)
             ref_kp_pos.add_(self.env.scene.env_origins[:, None])
-            ref_kp_quat = self.ref_kp_quat[timestep].to(self.device)
+            ref_kp_quat = self.ref_kp_quat[timestep]
 
             body_kp_pos = self.robot.data.body_pos_w[:, self.keypoint_body_index]
             body_kp_quat = self.robot.data.body_quat_w[:, self.keypoint_body_index]
@@ -127,8 +127,8 @@ class Humanoid(SimpleEnv):
 
         def debug_draw(self):
             if active_adaptation._BACKEND == "isaac":
-                timestep = self.env.episode_length_buf.cpu()
-                ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)
+                timestep = self.env.episode_length_buf
+                ref_kp_pos = self.ref_kp_pos[timestep]
                 ref_kp_pos.add_(self.env.scene.env_origins[:, None])
 
                 body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
@@ -147,12 +147,12 @@ class Humanoid(SimpleEnv):
             self.ref_kp_quat = self.env.command_manager.body_quat_w[:, self.keypoint_body_index]
 
         def compute(self):
-            timestep = self.env.episode_length_buf.cpu()
-            max_timestep = self.env.max_episode_length.cpu() - 1
+            timestep = self.env.episode_length_buf
+            max_timestep = self.env.max_episode_length - 1
             timestep = torch.clamp(timestep, max=max_timestep)
-            ref_kp_pos = self.ref_kp_pos[timestep].to(self.device)       # (num_envs, num_keypoints, 3)
+            ref_kp_pos = self.ref_kp_pos[timestep]       # (num_envs, num_keypoints, 3)
             ref_kp_pos.add_(self.env.scene.env_origins[:, None])
-            ref_kp_quat = self.ref_kp_quat[timestep].to(self.device)
+            ref_kp_quat = self.ref_kp_quat[timestep]
 
             body_kp_pos = self.robot.data.body_pos_w[:, self.keypoint_body_index]
             body_kp_quat = self.robot.data.body_quat_w[:, self.keypoint_body_index]
@@ -168,7 +168,7 @@ class Humanoid(SimpleEnv):
 
     def _update_adaptive_sigma(self, error, term):
         self._error_ema[term] = self._error_ema[term] * (1 - self._alpha) + error * self._alpha
-        self._adaptive_sigma[term] = min(self._adaptive_sigma[term], self._error_ema[term])
+        self._adaptive_sigma[term] = torch.minimum(self._adaptive_sigma[term], self._error_ema[term])
     
     # Motion Tracking Reward
     class tracking_anchor_pos(mdp.Reward):
@@ -178,8 +178,8 @@ class Humanoid(SimpleEnv):
             self.anchor_body_index = self.env.command_manager.anchor_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_anchor_pos_w = self.env.command_manager.body_pos_w[timestep][:, self.anchor_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_anchor_pos_w = self.env.command_manager.body_pos_w[timestep][:, self.anchor_body_index]
             ref_anchor_pos_w.add_(self.env.scene.env_origins)
             anchor_pos_w = self.robot.data.body_pos_w[:, self.anchor_body_index]
             error = (anchor_pos_w - ref_anchor_pos_w).square().sum(-1, True)
@@ -195,8 +195,8 @@ class Humanoid(SimpleEnv):
             self.anchor_body_index = self.env.command_manager.anchor_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_anchor_quat_w = self.env.command_manager.body_quat_w[timestep][:, self.anchor_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_anchor_quat_w = self.env.command_manager.body_quat_w[timestep][:, self.anchor_body_index]
             anchor_quat_w = self.robot.data.body_quat_w[:, self.anchor_body_index]
             error = (quat_error_magnitude(anchor_quat_w, ref_anchor_quat_w) ** 2).unsqueeze(-1)
             # reward = torch.exp(- error / self.sigma)
@@ -211,8 +211,8 @@ class Humanoid(SimpleEnv):
             self.joint_indices, self.joint_names = self.robot.find_joints(joint_names, preserve_order=True)
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_qpos = self.env.command_manager.joint_pos[timestep][:, self.joint_indices].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_qpos = self.env.command_manager.joint_pos[timestep][:, self.joint_indices]
             qpos = self.robot.data.joint_pos[:, self.joint_indices]
             error = (qpos - ref_qpos).square().mean(-1, True)
             # reward = torch.exp(- error / self.sigma)
@@ -227,8 +227,8 @@ class Humanoid(SimpleEnv):
             self.keypoint_body_index = self.env.command_manager.keypoint_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.keypoint_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.keypoint_body_index]
             ref_keypoints.add_(self.env.scene.env_origins[:, None])
 
             body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
@@ -246,8 +246,8 @@ class Humanoid(SimpleEnv):
             self.keypoint_body_index = self.env.command_manager.keypoint_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_keypoints = self.env.command_manager.body_quat_w[timestep][:, self.keypoint_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_keypoints = self.env.command_manager.body_quat_w[timestep][:, self.keypoint_body_index]
 
             body_quat_w = self.robot.data.body_quat_w[:, self.keypoint_body_index]
             error = (quat_error_magnitude(body_quat_w, ref_keypoints) ** 2).mean(-1, True)
@@ -263,8 +263,8 @@ class Humanoid(SimpleEnv):
             self.keypoint_body_index = self.env.command_manager.keypoint_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_lin_vel = self.env.command_manager.body_lin_vel_w[timestep][:, self.keypoint_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_lin_vel = self.env.command_manager.body_lin_vel_w[timestep][:, self.keypoint_body_index]
             body_lin_vel_w = self.robot.data.body_lin_vel_w[:, self.keypoint_body_index]
             error = (body_lin_vel_w - ref_lin_vel).square().sum(-1).mean(-1, True)
             reward = torch.exp(- error / self.env._adaptive_sigma["tracking_kp_lin_vel"])
@@ -278,8 +278,8 @@ class Humanoid(SimpleEnv):
             self.keypoint_body_index = self.env.command_manager.keypoint_body_index
 
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_ang_vel = self.env.command_manager.body_ang_vel_w[timestep][:, self.keypoint_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_ang_vel = self.env.command_manager.body_ang_vel_w[timestep][:, self.keypoint_body_index]
             body_ang_vel_w = self.robot.data.body_ang_vel_w[:, self.keypoint_body_index]
             error = (body_ang_vel_w - ref_ang_vel).square().sum(-1).mean(-1, True)
             reward = torch.exp(- error / self.env._adaptive_sigma["tracking_kp_ang_vel"])
@@ -293,8 +293,8 @@ class Humanoid(SimpleEnv):
             self.keypoint_body_index = self.env.command_manager.keypoint_body_index
             
         def compute(self) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf-1).cpu()
-            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.keypoint_body_index].to(self.device)
+            timestep = (self.env.episode_length_buf-1)
+            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.keypoint_body_index]
             ref_keypoints.add_(self.env.scene.env_origins[:, None])
             body_pos_global = self.robot.data.body_pos_w[:, self.keypoint_body_index]
             error = (ref_keypoints - body_pos_global).norm(dim=-1)
@@ -317,8 +317,8 @@ class Humanoid(SimpleEnv):
             self.robot: Articulation = self.env.scene["robot"]
 
         def compute(self, termination: torch.Tensor) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf - 1).cpu()
-            ref_root_translation = self.env.command_manager.root_pos_w[timestep].to(self.device)
+            timestep = (self.env.episode_length_buf - 1)
+            ref_root_translation = self.env.command_manager.root_pos_w[timestep]
             ref_root_translation.add_(self.env.scene.env_origins)
             root_pos_w = self.robot.data.root_pos_w
             deviation = (root_pos_w - ref_root_translation).norm(dim=1, keepdim=True)
@@ -332,8 +332,8 @@ class Humanoid(SimpleEnv):
             self.robot: Articulation = self.env.scene["robot"]
 
         def compute(self, termination: torch.Tensor) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf - 1).cpu()
-            ref_quat_w = self.env.command_manager.root_quat_w[timestep].to(self.device)
+            timestep = (self.env.episode_length_buf - 1)
+            ref_quat_w = self.env.command_manager.root_quat_w[timestep]
             root_quat_w = self.robot.data.root_quat_w
 
             ref_projected_gravity_b = quat_rotate_inverse(ref_quat_w, self.robot.data.GRAVITY_VEC_W)
@@ -351,8 +351,8 @@ class Humanoid(SimpleEnv):
             self.body_indices = [self.robot.body_names.index(name) for name in body_names]
 
         def compute(self, termination: torch.Tensor) -> torch.Tensor:
-            timestep = (self.env.episode_length_buf - 1).cpu()
-            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.body_indices].to(self.device)
+            timestep = (self.env.episode_length_buf - 1)
+            ref_keypoints = self.env.command_manager.body_pos_w[timestep][:, self.body_indices]
             ref_keypoints.add_(self.env.scene.env_origins[:, None])
 
             body_pos_global = self.robot.data.body_pos_w[:, self.body_indices]
