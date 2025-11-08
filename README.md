@@ -9,29 +9,37 @@
 ## Current Limitations
 * TorchRL stores redundant information and therefore the rollout buffer consumes more GPU memory.
 
-## Installation
+## Installation (Ubuntu 22.04)
 
+0. First install `uv`:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 1. For the following steps, the recommended way to structure the (VSCode or Cursor) workspace is:
    ```bash
     ${workspaceFolder}/ # File->Open Folder here
+      lab51/    # uv venv
       active-adaptation/
       IsaacLab/
         _isaac_sim/
    ```
-2. Install [Isaac Sim 4.5.0](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html) by downloading the latest release and unzip it to a desired location `$ISAACSIM_PATH`.
-3. Install [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and setup a conda environment:
+2. Install [Isaac Sim 5.1.0](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html) by downloading the latest release and unzip it to a desired location `$ISAACSIM_PATH`.
+3. Install [Isaac Lab (update to 2025.11.08)](https://github.com/isaac-sim/IsaacLab) and setup a conda environment:
    ```bash
-   conda create -n <env> python=3.10
-   conda activate <env>
+   uv venv --python 3.11 lab51
+   source lab51/bin/activate
+   uv pip install -U pip
    # install IsaacLab to the exisiting conda environment
    # git clone https://github.com/isaac-sim/IsaacLab.git
    git clone git@github.com:isaac-sim/IsaacLab.git # SSH recommended
    cd IsaacLab
    ln -s $ISAACSIM_PATH _isaac_sim
-   ./isaaclab.sh -c <env>
+   ./isaaclab.sh --uv ../lab51
    ./isaaclab.sh -i none # install without additional RL libraries
    # reactivate the environment
-   conda activate <env>
+   cd ..
+   deactivate
+   source lab51/bin/activate
    echo $PYTHONPATH 
    ```
    You should see the isaac-sim related dependencies are added to `$PYTHONPATH`.
@@ -52,12 +60,14 @@
         //... note that adding extraPaths may increase VSCode CPU usage
     ],
    ```
-6. `pip install -U torch torchvision tensordict torchrl`
+6. `uv pip install -U torch torchvision tensordict torchrl`
 7. Install this repo:
    ```bash
    git clone git@github.com:xiaohu-art/MotionTracking.git # SSH recommended
    cd active-adaptation
-   pip install -e . 
+   uv pip install -e . 
+   # if you encounter errors about evdev, you can:
+   # unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS GCC_EXEC_PREFIX
    ```
 
 # Data Preparation
