@@ -122,7 +122,7 @@ class Humanoid(SimpleEnv):
             body_kp_pos = self.robot.data.body_pos_w[:, self.keypoint_body_index]
             body_kp_quat = self.robot.data.body_quat_w[:, self.keypoint_body_index]
 
-            pos, _ = subtract_frame_transforms(ref_kp_pos, ref_kp_quat, body_kp_pos, body_kp_quat)
+            pos, _ = subtract_frame_transforms(body_kp_pos, body_kp_quat, ref_kp_pos, ref_kp_quat)
             return pos.reshape(self.num_envs, -1)
 
         def debug_draw(self):
@@ -157,7 +157,7 @@ class Humanoid(SimpleEnv):
             body_kp_pos = self.robot.data.body_pos_w[:, self.keypoint_body_index]
             body_kp_quat = self.robot.data.body_quat_w[:, self.keypoint_body_index]
 
-            _, quat = subtract_frame_transforms(ref_kp_pos, ref_kp_quat, body_kp_pos, body_kp_quat)
+            _, quat = subtract_frame_transforms(body_kp_pos, body_kp_quat, ref_kp_pos, ref_kp_quat)
             return quat.reshape(self.num_envs, -1)
 
 

@@ -68,6 +68,7 @@
    uv pip install -e . 
    # if you encounter errors about evdev, you can:
    # unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS GCC_EXEC_PREFIX
+   uv pip install xxhash mujoco joblib
    ```
 
 # Data Preparation
