@@ -268,23 +268,21 @@ class MotionLib(Command):
         self.end_frames = self.motion_length.cumsum(dim=0).long().to(self.device)
         self.motion_length = self.motion_length.to(self.device)
 
-    # # for sanity check
     # def update(self):
-    #     self.frames = self.env.episode_length_buf.cpu()
-    #     env_ids = torch.arange(self.num_envs, device=self.device)
+    #     timestep = self.env.episode_length_buf
+    #     max_timestep = self.env.max_episode_length - 1
+    #     timestep = torch.clamp(timestep, max=max_timestep)
         
     #     root_state = self.robot.data.root_state_w.clone()
-    #     root_state[:, :3] = self.root_translations[self.frames].to(self.device) + self.env_origin + torch.tensor([0, 0, 1.], device=self.device)
-    #     root_state[:, 3:7] = self.root_orientation[self.frames].to(self.device)
-    #     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
+    #     root_state[:, :3] = self.root_pos_w[timestep] + self.env_origin
+    #     root_state[:, 3:7] = self.root_quat_w[timestep]
+    #     root_state[:, 7:10] = self.root_lin_vel_w[timestep]
+    #     root_state[:, 10:] = self.root_ang_vel_w[timestep]
+    #     self.robot.write_root_state_to_sim(root_state)
 
-    #     qpos = self.qpos[self.frames].to(self.device)
-    #     self.robot.write_joint_state_to_sim(
-    #         qpos,
-    #         self.robot.data.default_joint_vel,
-    #         env_ids=env_ids
-    #     )
-    #     return
+    #     joint_pos = self.joint_pos[timestep]
+    #     joint_vel = self.joint_vel[timestep]
+    #     self.robot.write_joint_state_to_sim(joint_pos, joint_vel)
 
 class MotionLibG1(MotionLib):
     

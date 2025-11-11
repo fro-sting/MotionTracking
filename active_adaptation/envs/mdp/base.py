@@ -238,6 +238,37 @@ class Termination(Generic[CT], _RegistryMixin):
     def num_envs(self) -> int:
         return self.env.num_envs
 
+class Curriculum(Generic[CT], _RegistryMixin):
+    """Base class for curriculum schedules that can modify the environment each step."""
+
+    def __init__(self, env, enabled: bool = True):
+        self.env: _Env = env
+        self.command_manager: CT = env.command_manager
+        self.enabled = enabled
+
+    @property
+    def num_envs(self):
+        return self.env.num_envs
+
+    @property
+    def device(self):
+        return self.env.device
+
+    def startup(self):
+        pass
+
+    def reset(self, env_ids: torch.Tensor):
+        pass
+
+    def pre_step(self, substep: int):
+        """Called before each physics substep."""
+        pass
+
+    def update(self):
+        pass
+
+    def debug_draw(self):
+        pass
 
 def reward(func):
     func.is_reward = True
