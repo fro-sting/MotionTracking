@@ -169,9 +169,8 @@ class MotionLib(Command):
             motion_length = self.motion_length[motion_ids]
             bin_size = 100
             max_bins = ((motion_length - 1) // bin_size).clamp_min(0)
-            cap = torch.div(max_bins, 3, rounding_mode='floor') # floor(max_bins/3)
             r = torch.rand_like(max_bins, dtype=torch.float32)
-            bin_ids = torch.floor(r * (cap.to(torch.float32) + 1.0)).to(torch.long)
+            bin_ids = torch.floor(r * (max_bins.to(torch.float32) + 1.0)).to(torch.long)
             start_frames += bin_ids * bin_size
         return start_frames
     
