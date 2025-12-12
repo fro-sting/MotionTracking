@@ -192,7 +192,7 @@ checkpoint*.pt
 test/
 *.csv
 
-scripts/data/g1
+scripts/data/
 
 #meshes
 active_adaptation/assets_mjcf/

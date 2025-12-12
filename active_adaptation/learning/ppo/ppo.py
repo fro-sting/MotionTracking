@@ -44,6 +44,7 @@ from ..modules.distributions import IndependentNormal
 from ..modules.common import *
 
 import active_adaptation
+from active_adaptation.utils.torchrl import ObsNorm
 import torch.distributed as distr
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -202,6 +203,13 @@ class PPOPolicy(TensorDictModuleBase):
                 self.vecnorm.to_observation_norm(),
                 self.actor,
             )
+        return policy
+    
+    def get_onnx_policy(self):
+        policy = TensorDictSequential(
+            ObsNorm.from_vecnorm(self.vecnorm, self.cfg.vecnorm),
+            self.actor,
+        )
         return policy
 
     # @torch.compile

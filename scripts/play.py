@@ -46,7 +46,8 @@ def main(cfg):
         
         FILE_PATH = os.path.dirname(__file__)
         
-        deploy_policy = copy.deepcopy(policy.get_rollout_policy("deploy"))
+        # deploy_policy = copy.deepcopy(policy.get_rollout_policy("deploy"))
+        deploy_policy = copy.deepcopy(policy.get_onnx_policy())
         _policy = TensorDictSequential(deploy_policy).cpu()
         
         print(f"Inference time of policy: {test(_policy, fake_input)}")
