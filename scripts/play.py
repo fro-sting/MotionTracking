@@ -34,8 +34,6 @@ def main(cfg):
         import copy
         time_str = datetime.datetime.now().strftime("%m-%d_%H-%M")
         fake_input = env.observation_spec[0].rand().cpu()
-        fake_input["is_init"] = torch.tensor(1, dtype=bool)
-        fake_input["context_adapt_hx"] = torch.zeros(128)
         fake_input = fake_input.unsqueeze(0)
 
         def test(m, x):
