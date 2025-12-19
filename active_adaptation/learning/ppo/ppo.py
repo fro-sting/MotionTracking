@@ -62,7 +62,7 @@ class PPOConfig:
     entropy_coef: float = 0.005
     layer_norm: Union[str, None] = "before"
     value_norm: bool = False
-    vecnorm: List[str] = field(default_factory=lambda: [OBS_KEY, OBS_PRIV_KEY])
+    vecnorm: List[str] = field(default_factory=lambda: [OBS_KEY,OBS_REF_KEY,OBS_PRIV_KEY])
 
     compile: bool = False
     use_ddp: bool = True
