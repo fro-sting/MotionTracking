@@ -1,0 +1,18 @@
+{
+    "python.analysis.extraPaths": [
+        "./IsaacLab-main/source/isaaclab",
+        "./IsaacLab-main/source/isaaclab_assets",
+        "./IsaacLab-main/source/isaaclab_mimic",
+        "./IsaacLab-main/source/isaaclab_rl",
+        "./IsaacLab-main/source/isaaclab_tasks",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.behavior",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.behavior.ui",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.domain_randomization",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.examples",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.scene_blox",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.synthetic_recorder",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.replicator.writers",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.core.api",
+        "${workspaceFolder}/IsaacLab-main/_isaac_sim/exts/isaacsim.core.utils"
+    ]
+}

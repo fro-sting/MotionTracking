@@ -1,0 +1,8 @@
+*.png
+*.jpeg
+*.mp4
+*.pdf
+*.onnx
+*.pkl
+
+**/data_process/
