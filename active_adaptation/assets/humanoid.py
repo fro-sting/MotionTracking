@@ -206,7 +206,6 @@ for a in G1_29DOF_CFG.actuators.values():
         if n in e and n in s and s[n]:
             G1_ACTION_SCALE[n] = 0.25 * e[n] / s[n]
 
-
 GR3_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         fix_base=False,
@@ -364,14 +363,6 @@ GR3_CFG = ArticulationCfg(
                 ".*_wrist_pitch_joint": ARMATURE_4010,
                 ".*_wrist_yaw_joint": ARMATURE_4010,
             },
-        ),
-        "head": ImplicitActuatorCfg(
-            effort_limit_sim=25.0,
-            velocity_limit_sim=37.0,
-            joint_names_expr=["head_yaw_joint", "head_pitch_joint"],
-            stiffness=STIFFNESS_5020,
-            damping=DAMPING_5020,
-            armature=ARMATURE_5020,
         ),
     },
 )

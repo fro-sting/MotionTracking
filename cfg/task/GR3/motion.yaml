@@ -1,0 +1,118 @@
+# @package task
+
+name: motion
+
+viewer:
+  resolution: [1280, 720]
+  lookat: [0., 0., 0.]
+  eye: [2.0, 2.0, 1.0]
+
+robot: 
+  name: gr3
+terrain: plane
+
+num_envs: 4096
+max_episode_length: 1000
+
+sim:
+  step_dt: 0.02
+  isaac_physics_dt: 0.005
+  mujoco_physics_dt: 0.002
+
+action:
+  _target_: active_adaptation.envs.mdp.action.JointPosition
+  action_scaling:
+    .*hip.*: 0.5
+    .*knee.*: 0.5
+    .*ankle.*: 0.5
+    waist_yaw_joint: 0.5
+    .*shoulder.*: 0.5
+    .*elbow.*: 0.5
+    .*wrist.*: 0.5
+  max_delay: 1
+  alpha: [0.6, 0.8]
+
+command:
+  _target_: active_adaptation.envs.mdp.MotionLibGR3
+  motion_clip_dir: "scripts/data/gr3"
+  dataset: [ sfu_29dof]
+  occlusion: "amass_copycat_occlusion_v3.pkl"
+  mode: train
+  eval_id: null
+
+observation:
+  robot:
+    root_quat_w:
+    root_angvel_b:        {noise_std: 0.05}
+    projected_gravity_b:  {noise_std: 0.01}
+    joint_pos:            {noise_std: 0.05}
+    joint_vel:            {noise_std: 0.2}
+    prev_actions:         {steps: 1}
+    body_pos:             {body_names: [left_thigh_pitch_link, right_thigh_pitch_link, 
+                                        left_shank_pitch_link, right_shank_pitch_link, 
+                                        left_foot_roll_link, right_foot_roll_link, 
+                                        left_upper_arm_pitch_link, right_upper_arm_pitch_link, 
+                                        left_lower_arm_pitch_link, right_lower_arm_pitch_link, 
+                                        left_hand_roll_link, right_hand_roll_link],
+                                        yaw_only: false}
+  ref_motion_:
+    ref_qpos:             {}
+    ref_kp_pos_gap:       {}
+    ref_kp_quat:          {}
+  priv:
+    root_height:      {}
+    root_linvel_b:    {}
+    body_vel:         {body_names: [left_thigh_pitch_link, right_thigh_pitch_link, 
+                                    left_shank_pitch_link, right_shank_pitch_link, 
+                                    left_foot_roll_link, right_foot_roll_link, 
+                                    left_upper_arm_pitch_link, right_upper_arm_pitch_link, 
+                                    left_lower_arm_pitch_link, right_lower_arm_pitch_link, 
+                                    left_hand_roll_link, right_hand_roll_link], 
+                                    yaw_only: false}
+
+reward:
+  loco:
+    tracking_anchor_pos:    {weight: 1., enabled: true}
+    tracking_anchor_quat:   {weight: 1., enabled: true}
+    tracking_qpos:          {weight: 1., enabled: true}
+    tracking_kp_pos:        {weight: 2., enabled: true}
+    tracking_kp_quat:       {weight: 2., enabled: true}
+    tracking_kp_lin_vel:    {weight: 2., enabled: true}
+    tracking_kp_ang_vel:    {weight: 2., enabled: true}
+
+    feet_slip:          {weight: 1.0, enabled: true, body_names: .*foot_roll_link}
+
+    action_rate_l2:     {weight: 0.2, enabled: true}
+
+    mean_kp_error:      {weight: 1.0, enabled: false}
+
+randomization:
+  push:
+    body_names: ["torso_link", "base_link"]
+    force_range: [0.0, 0.1]
+  perturb_body_mass:
+    ".*hand_roll_link": [1.0, 2.0]
+    "^(?!.*hand_roll_link).*": [0.9, 1.1]
+  perturb_body_materials:
+    body_names: ".*foot_roll_link"
+    static_friction_range: [0.3, 4.0]
+    dynamic_friction_range: [0.3, 4.0]
+    restitution_range: [0.0, 0.2]
+  motor_params_implicit:
+    stiffness_range:
+      .*: [0.8, 1.1]
+    damping_range:
+      .*: [0.8, 1.1]
+    armature_range:
+      .*: [0.0, 0.01]
+  reset_joint_states_uniform:
+    pos_ranges:
+      .*: [-0.1, 0.1]
+    rel: true
+
+termination:
+  root_deviation: {max_distance: 0.4}
+  root_rot_deviation: {threshold: 0.8}
+  track_kp_error: {threshold: 0.4, 
+                  body_names: [ left_hand_roll_link, right_hand_roll_link,
+                                left_foot_roll_link, right_foot_roll_link]}

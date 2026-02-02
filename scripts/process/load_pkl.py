@@ -47,7 +47,7 @@ from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul, 
 ##
 # Pre-defined configs
 ##
-from active_adaptation.assets.humanoid import G1_29DOF_CFG
+from active_adaptation.assets.humanoid import G1_29DOF_CFG , GR3_CFG
 
 
 @configclass
@@ -67,7 +67,16 @@ class ReplayMotionsSceneCfg(InteractiveSceneCfg):
     )
 
     # articulation
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = GR3_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+         # 修复：手动指定初始关节位置，确保在 URDF 限制范围内
+        init_state=ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "left_elbow_pitch_joint": -0.5,
+                "right_elbow_pitch_joint": -0.5,
+            }
+        ),
+        )
 
 
 class MotionLoader:
@@ -97,10 +106,24 @@ class MotionLoader:
         motion = self.motion_data
         # dict_keys(['root_trans_offset', 'pose_aa', 'dof', 'root_rot', 'smpl_joints', 'fps'])
         # motion = motion.to(torch.float32).to(self.device)
-        self.motion_base_poss_input = torch.from_numpy(motion["root_trans_offset"]).to(self.device)
-        self.motion_base_rots_input = torch.from_numpy(motion["root_rot"]).to(self.device)
+        print(f"[DEBUG] Available keys in motion data: {motion.keys()}")
+
+        self.motion_base_poss_input = torch.from_numpy(motion["root_pos_w"]).to(self.device)
+        self.motion_base_rots_input = torch.from_numpy(motion["root_quat_w"]).to(self.device)
         self.motion_base_rots_input = self.motion_base_rots_input[:, [3, 0, 1, 2]]  # convert to wxyz
-        self.motion_dof_poss_input = torch.from_numpy(motion["dof"]).to(self.device)
+        self.motion_dof_poss_input = torch.from_numpy(motion["joint_pos"]).to(self.device)
+
+        # 检查是否存在全零的关节维度
+        is_zero_joint = torch.all(self.motion_dof_poss_input == 0, dim=0)
+        zero_indices = torch.where(is_zero_joint)[0].tolist()
+        if len(zero_indices) > 0:
+            print(f"\033[93m[WARNING]: Motion '{self.motion_key}' 中有 {len(zero_indices)} 个关节数据全为 0\033[0m")
+            if self.joint_names:
+                zero_names = [self.joint_names[i] for i in zero_indices]
+                print(f"\033[93m[WARNING]: 全零关节名称: {zero_names}\033[0m")
+            else:
+                print(f"\033[93m[WARNING]: 全零关节索引: {zero_indices}\033[0m")
+
 
         self.input_frames = self.motion_base_poss_input.shape[0]
         self.duration = (self.input_frames - 1) * self.input_dt
@@ -298,6 +321,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
     print(f"[INFO]: Loading motions from {args_cli.input_file}")
     all_motions = joblib.load(args_cli.input_file)
     
+    print("-" * 50)
+    if "joint_names" in all_motions:
+        print(f"[DEBUG] 全局关节名称顺序: {all_motions['joint_names']}")
+    else:
+        first_key = list(all_motions.keys())[0]
+        if isinstance(all_motions[first_key], dict) and "joint_names" in all_motions[first_key]:
+            print(f"[DEBUG] Motion '{first_key}' 中的关节名称顺序: {all_motions[first_key]['joint_names']}")
+        else:
+            print("[DEBUG] 在 pkl 中未找到 'joint_names' 键。")
+            # 如果找不到，打印第一条数据的 joint_pos 形状以便确认数据量
+            sample_pos = all_motions[first_key]["joint_pos"]
+            print(f"[DEBUG] 样本数据 'joint_pos' 的形状: {sample_pos.shape}")
+    print("-" * 50)
+
     # Determine which motions to process
     motion_keys = args_cli.motion_keys if args_cli.motion_keys else list(all_motions.keys())
     print(f"[INFO]: Processing {len(motion_keys)} motions: {motion_keys}")
@@ -345,13 +382,13 @@ def main():
             "left_hip_pitch_joint",
             "left_hip_roll_joint",
             "left_hip_yaw_joint",
-            "left_knee_joint",
+            "left_knee_pitch_joint",  # GR3 叫 knee_pitch
             "left_ankle_pitch_joint",
             "left_ankle_roll_joint",
             "right_hip_pitch_joint",
             "right_hip_roll_joint",
             "right_hip_yaw_joint",
-            "right_knee_joint",
+            "right_knee_pitch_joint", # GR3 叫 knee_pitch
             "right_ankle_pitch_joint",
             "right_ankle_roll_joint",
             "waist_yaw_joint",
@@ -360,17 +397,17 @@ def main():
             "left_shoulder_pitch_joint",
             "left_shoulder_roll_joint",
             "left_shoulder_yaw_joint",
-            "left_elbow_joint",
-            "left_wrist_roll_joint",
+            "left_elbow_pitch_joint",  # GR3 叫 elbow_pitch
+            "left_wrist_yaw_joint",    # 顺序可能需要根据 pkl 调整
             "left_wrist_pitch_joint",
-            "left_wrist_yaw_joint",
+            "left_wrist_roll_joint",
             "right_shoulder_pitch_joint",
             "right_shoulder_roll_joint",
             "right_shoulder_yaw_joint",
-            "right_elbow_joint",
-            "right_wrist_roll_joint",
-            "right_wrist_pitch_joint",
+            "right_elbow_pitch_joint", # GR3 叫 elbow_pitch
             "right_wrist_yaw_joint",
+            "right_wrist_pitch_joint",
+            "right_wrist_roll_joint",
         ],
     )
 
